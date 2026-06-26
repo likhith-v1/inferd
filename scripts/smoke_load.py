@@ -93,7 +93,7 @@ def load_text_backbone(weights_dir: Path):
             + (f" (removed: {', '.join(stripped)})" if stripped else "")
         )
         lm = model.model.language_model
-        lm_head = model.lm_head
+        lm_head = getattr(model, "lm_head", None)
         del model
         torch.cuda.empty_cache()
     elif hasattr(model, "language_model"):

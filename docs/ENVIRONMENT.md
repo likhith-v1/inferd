@@ -9,7 +9,7 @@ Reproducible local CUDA stack for **inferd** on WSL2 Ubuntu, RTX 5090 (Blackwell
 | OS | Ubuntu 26.04 LTS (WSL2) |
 | Kernel | `6.18.33.1-microsoft-standard-WSL2` |
 | Package manager | [uv](https://docs.astral.sh/uv/) `0.11.24` |
-| Python | **3.13.14** (`.python-version`) |
+| Python | **3.13.14** (pinned in `.python-version`) |
 | C compiler | `gcc` / `g++` (required by Triton kernel JIT) |
 
 ## GPU / driver
@@ -40,11 +40,16 @@ uv run python -c "import torch; print(torch.cuda.get_device_name(0), torch.cuda.
 | transformers | **5.3.0** | |
 | accelerate | **1.14.0** | |
 | huggingface-hub | **1.21.0** | `hf` CLI for one-time weight pull |
-| flash-linear-attention | **0.5.1** | Import as `fla`; fast path needs `causal-conv1d` |
-| unsloth | **2026.3.11** | Import before `transformers` when used for finetune |
+| flash-linear-attention | **0.5.1** | Import as `fla`; fast path needs `causal-conv1d` (pinned via GitHub wheel in `pyproject.toml`) |
+| causal-conv1d | **1.6.1** (`+cu13torch2.10`) | Prebuilt wheel; enables `fla` fast path on linear-attn layers |
+| unsloth | **2026.3.11** | Call `bootstrap_finetune()` from `inferd.env` before importing `transformers` in finetune scripts |
 | cuDNN (via PyTorch) | **9.1.9** (`91900`) | |
 
-**Note on bitsandbytes:** `libnvJitLink.so.13` is bundled inside the venv (`nvidia/cu13/lib/`) but is not on `LD_LIBRARY_PATH` by default. `scripts/smoke_load.py` pre-loads it via `ctypes` before importing bitsandbytes — no shell configuration needed.
+**Note on bitsandbytes:** `libnvJitLink.so.13` is bundled inside the venv (`nvidia/cu13/lib/`) but is not on `LD_LIBRARY_PATH` by default. `inferd.env` pre-loads it via `ctypes` (with error handling) before GPU imports — import it at the top of any entry point:
+
+```python
+import inferd.env  # noqa: F401
+```
 
 Reproduce the env on a clean clone:
 
@@ -78,6 +83,7 @@ uv run python scripts/smoke_load.py
 | bitsandbytes 4-bit linear | **PASS** |
 | Triton kernel JIT | **PASS** |
 | flash-linear-attention (`fla`) import | **PASS** |
+| `causal-conv1d` fast path | **PASS** (when wheel installed) |
 | Load Qwen3.5-9B (text backbone, vision stripped) | **PASS** |
 | Single forward pass | **PASS** (`"The capital of France is"` → `" Paris"`) |
 
@@ -96,7 +102,6 @@ Observed at load (bf16, `device_map=cuda:0`, vision tower stripped):
 | Item | Status | When to revisit |
 |------|--------|-----------------|
 | `flash-attn` (FA2) | No pre-built sm_120 wheel; needs `nvcc` to build | Phase-03 (QLoRA) |
-| `causal-conv1d` | Required for `fla` fast path on linear-attn layers | Phase-03 |
 | Unsloth Flash Attention 2 | Broken on Blackwell; xformers fallback in use | Phase-03 |
 
 ## Quick reference
