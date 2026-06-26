@@ -3,16 +3,26 @@ Smoke test for phase-01 validation.
 
 Loads Qwen3.5-9B as AutoModelForMultimodalLM, extracts the text backbone,
 strips the vision tower, runs one forward pass, and prints diagnostics.
+Also validates bitsandbytes 4-bit, Triton JIT, and flash-linear-attention.
 
 Usage:
     uv run python scripts/smoke_load.py
     HF_HUB_OFFLINE=1 uv run python scripts/smoke_load.py   # offline proof
 """
 
-import sys
+import ctypes
 import os
-import torch
+import sysconfig
+import sys
 from pathlib import Path
+
+# Pre-load libnvJitLink.so.13 from the venv's bundled CUDA 13 libs before
+# bitsandbytes imports it via ctypes.  Must run before any GPU-library import.
+_nvjitlink = Path(sysconfig.get_paths()["purelib"]) / "nvidia/cu13/lib/libnvJitLink.so.13"
+if _nvjitlink.exists():
+    ctypes.CDLL(str(_nvjitlink), mode=ctypes.RTLD_GLOBAL)
+
+import torch
 from transformers import AutoModelForMultimodalLM, AutoProcessor, AutoTokenizer
 
 WEIGHTS_DIR = Path(__file__).parent.parent / "weights" / "Qwen3.5-9B"
@@ -126,6 +136,57 @@ def run_forward_pass(lm, tokenizer, lm_head=None):
     return logits.shape, next_token
 
 
+def check_bitsandbytes_4bit() -> bool:
+    print("\nChecking bitsandbytes 4-bit linear ...")
+    try:
+        import bitsandbytes as bnb
+        x = torch.randn(4, 16, device="cuda")
+        lin = bnb.nn.Linear4bit(16, 8, bias=False).cuda()
+        out = lin(x)
+        print(f"  bnb {bnb.__version__} 4-bit forward: shape={out.shape}  PASS")
+        return True
+    except Exception as exc:
+        print(f"  bitsandbytes 4-bit FAIL: {exc}")
+        return False
+
+
+def check_triton_kernel() -> bool:
+    print("\nChecking Triton kernel JIT ...")
+    try:
+        import triton
+        import triton.language as tl
+
+        @triton.jit
+        def _add(x_ptr, y_ptr, out_ptr, n, BLOCK: tl.constexpr):
+            pid = tl.program_id(0)
+            x = tl.load(x_ptr + pid)
+            y = tl.load(y_ptr + pid)
+            tl.store(out_ptr + pid, x + y)
+
+        x = torch.ones(4, device="cuda")
+        y = torch.ones(4, device="cuda")
+        out = torch.zeros(4, device="cuda")
+        _add[(4,)](x, y, out, 4, BLOCK=1)
+        assert out.tolist() == [2.0] * 4
+        print(f"  triton {triton.__version__} kernel JIT: PASS")
+        return True
+    except Exception as exc:
+        print(f"  Triton JIT FAIL: {exc}")
+        print("  (install gcc/g++ via: sudo apt-get install -y gcc g++)")
+        return False
+
+
+def check_fla() -> bool:
+    print("\nChecking flash-linear-attention (fla) ...")
+    try:
+        import fla
+        print(f"  fla {fla.__version__} import: PASS")
+        return True
+    except Exception as exc:
+        print(f"  fla FAIL: {exc}")
+        return False
+
+
 def main():
     offline = is_offline_mode()
     print("=" * 60)
@@ -133,6 +194,10 @@ def main():
     print("=" * 60)
 
     cap = check_capability()
+
+    bnb_ok = check_bitsandbytes_4bit()
+    triton_ok = check_triton_kernel()
+    fla_ok = check_fla()
 
     vram_before = vram_used_gb()
     lm, lm_head, tokenizer = load_text_backbone(WEIGHTS_DIR)
@@ -162,11 +227,14 @@ def main():
 
     cap_ok = cap == (12, 0)
     print("\n" + "=" * 60)
-    print(f"Capability (12,0): {'PASS' if cap_ok else 'FAIL'}")
-    print(f"Forward pass:      {'PASS' if forward_ok else 'FAIL'}")
-    print(f"Offline mode:      {'YES' if offline else 'not set'}")
+    print(f"Capability (12,0):    {'PASS' if cap_ok else 'FAIL'}")
+    print(f"bitsandbytes 4-bit:   {'PASS' if bnb_ok else 'FAIL'}")
+    print(f"Triton kernel JIT:    {'PASS' if triton_ok else 'FAIL (needs gcc)'}")
+    print(f"flash-linear-attn:    {'PASS' if fla_ok else 'FAIL'}")
+    print(f"Forward pass:         {'PASS' if forward_ok else 'FAIL'}")
+    print(f"Offline mode:         {'YES' if offline else 'not set'}")
     print("=" * 60)
-    if not cap_ok or not forward_ok:
+    if not cap_ok or not forward_ok or not bnb_ok:
         sys.exit(1)
 
 
