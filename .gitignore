@@ -1,0 +1,6 @@
+weights/
+.venv/
+unsloth_compiled_cache/
+**/__pycache__/
+*.pyc
+*.pyo

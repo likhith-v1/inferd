@@ -29,7 +29,7 @@ local-first · WSL2 Ubuntu · RTX 5090 Blackwell **sm_120** · CUDA-native, **CU
 ```bash
 # inside WSL2 Ubuntu
 nvidia-smi                       # driver sees the 5090
-uv python install 3.12 && uv init
+uv python install 3.13 && uv init
 uv add "torch --index <blackwell-cu128-wheel-index>"  # pin the sm_120 wheel
 uv add triton bitsandbytes unsloth transformers accelerate
 uv run python -c "import torch;print(torch.cuda.get_device_capability())"  # (12,0)
