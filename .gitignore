@@ -1,5 +1,6 @@
 weights/
 .venv/
+bench/.venv-vllm/
 unsloth_compiled_cache/
 **/__pycache__/
 *.pyc
