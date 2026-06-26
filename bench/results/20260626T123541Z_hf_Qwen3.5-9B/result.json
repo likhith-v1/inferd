@@ -1,0 +1,172 @@
+{
+  "engine": "hf",
+  "role": "floor",
+  "model": "Qwen3.5-9B",
+  "profile": "canonical",
+  "max_tokens": 256,
+  "env": {
+    "timestamp": "2026-06-26T12:34:02Z",
+    "seed": 0,
+    "workload_hash": "ac7ee564a456d252",
+    "python": "3.13.14 (main, Jun 23 2026, 15:18:27) [Clang 22.1.3 ]",
+    "platform": "Linux-6.18.33.1-microsoft-standard-WSL2-x86_64-with-glibc2.43",
+    "torch": "2.11.0+cu130",
+    "cuda_available": true,
+    "gpu_name": "NVIDIA GeForce RTX 5090",
+    "gpu_capability": [
+      12,
+      0
+    ],
+    "cuda_version": "13.0",
+    "transformers": "5.3.0",
+    "driver_version": "610.62",
+    "vram_total_mb": "32607 MiB",
+    "git_commit": "1ed3e85"
+  },
+  "single_stream": [
+    {
+      "ttft_s": 0.3550301520008361,
+      "itl_s": 0.03464634113333173,
+      "total_time_s": 9.189847141000428,
+      "tokens_generated": 256,
+      "throughput_tok_s": 27.85682896267753,
+      "peak_vram_mb": 19107.0,
+      "peak_vram_torch_mb": 17405.86767578125,
+      "prompt": "The capital of France is",
+      "warmup_runs": 3
+    },
+    {
+      "ttft_s": 0.05906802200115635,
+      "itl_s": 0.03210356923808008,
+      "total_time_s": 1.4074179300005198,
+      "tokens_generated": 43,
+      "throughput_tok_s": 30.55240315148189,
+      "peak_vram_mb": 19107.0,
+      "peak_vram_torch_mb": 17231.31494140625,
+      "prompt": "Explain gravity in one sentence.",
+      "warmup_runs": 3
+    },
+    {
+      "ttft_s": 0.061056652000843314,
+      "itl_s": 0.03381521736470556,
+      "total_time_s": 8.68393708000076,
+      "tokens_generated": 256,
+      "throughput_tok_s": 29.47971612894017,
+      "peak_vram_mb": 19107.0,
+      "peak_vram_torch_mb": 17411.91259765625,
+      "prompt": "What is 17 multiplied by 13?",
+      "warmup_runs": 3
+    },
+    {
+      "ttft_s": 0.06277255199893261,
+      "itl_s": 0.03264190222729336,
+      "total_time_s": 0.7808944009993866,
+      "tokens_generated": 23,
+      "throughput_tok_s": 29.453406210320708,
+      "peak_vram_mb": 19107.0,
+      "peak_vram_torch_mb": 17218.7958984375,
+      "prompt": "Translate 'hello world' to Spanish.",
+      "warmup_runs": 3
+    },
+    {
+      "ttft_s": 0.06089355400035856,
+      "itl_s": 0.03408700663529481,
+      "total_time_s": 8.753080246000536,
+      "tokens_generated": 256,
+      "throughput_tok_s": 29.246847144691916,
+      "peak_vram_mb": 19107.0,
+      "peak_vram_torch_mb": 17423.10205078125,
+      "prompt": "Write a brief introduction to the concept of neural networks, suitable for a high-school student with no prior knowledge of AI.",
+      "warmup_runs": 3
+    },
+    {
+      "ttft_s": 0.0636852009993163,
+      "itl_s": 0.03257896193278283,
+      "total_time_s": 3.940581671000473,
+      "tokens_generated": 120,
+      "throughput_tok_s": 30.452357042388932,
+      "peak_vram_mb": 19107.0,
+      "peak_vram_torch_mb": 17297.51171875,
+      "prompt": "Summarize the key differences between supervised and unsupervised machine learning in two to three sentences.",
+      "warmup_runs": 3
+    },
+    {
+      "ttft_s": 0.06290875999911805,
+      "itl_s": 0.033718603288561376,
+      "total_time_s": 6.840348020999954,
+      "tokens_generated": 202,
+      "throughput_tok_s": 29.530661214876417,
+      "peak_vram_mb": 19109.0,
+      "peak_vram_torch_mb": 17382.615234375,
+      "prompt": "A user asks: 'My Python script is running very slowly when processing a large CSV file. What are three techniques I can try to speed it up?' Provide concise, actionable advice.",
+      "warmup_runs": 3
+    },
+    {
+      "ttft_s": 0.06154765299834253,
+      "itl_s": 0.03449694779608085,
+      "total_time_s": 8.858269340998959,
+      "tokens_generated": 256,
+      "throughput_tok_s": 28.899550255843828,
+      "peak_vram_mb": 19109.0,
+      "peak_vram_torch_mb": 17423.10791015625,
+      "prompt": "Describe the role of the transformer architecture in modern natural language processing and why it replaced recurrent neural networks for most tasks.",
+      "warmup_runs": 3
+    },
+    {
+      "ttft_s": 0.060307142999590724,
+      "itl_s": 0.035699911784311054,
+      "total_time_s": 9.16378464799891,
+      "tokens_generated": 256,
+      "throughput_tok_s": 27.936055880132734,
+      "peak_vram_mb": 19109.0,
+      "peak_vram_torch_mb": 17468.31005859375,
+      "prompt": "You are an expert systems programmer. A colleague has written a memory allocator in C that uses a free list. They are seeing fragmentation issues and occasional segfaults under high load. Walk through the most common causes of fragmentation in a free-list allocator, explain how to diagnose each, and suggest two concrete implementation strategies to reduce fragmentation without sacrificing throughput.",
+      "warmup_runs": 3
+    },
+    {
+      "ttft_s": 0.0634743589998834,
+      "itl_s": 0.03694524970196653,
+      "total_time_s": 9.484513033001349,
+      "tokens_generated": 256,
+      "throughput_tok_s": 26.99136994268956,
+      "peak_vram_mb": 19115.0,
+      "peak_vram_torch_mb": 17490.66748046875,
+      "prompt": "Consider the following scenario: a startup is building a real-time inference service that must handle 500 concurrent requests per second with a p99 latency under 200 ms. Their model is a 7-billion-parameter transformer running on two A100 GPUs. They are currently using naive single-request batching. Propose an architecture that would allow them to meet these requirements, covering batching strategy, KV-cache management, and load balancing.",
+      "warmup_runs": 3
+    },
+    {
+      "ttft_s": 0.05837737299953005,
+      "itl_s": 0.03531268212941273,
+      "total_time_s": 9.063111315999777,
+      "tokens_generated": 256,
+      "throughput_tok_s": 28.24637048736943,
+      "peak_vram_mb": 19115.0,
+      "peak_vram_torch_mb": 17461.20166015625,
+      "prompt": "Speculative decoding is a technique for accelerating autoregressive LLM inference. Explain the rejection-sampling acceptance rule in detail: under what condition is a draft token accepted, what happens when it is rejected, and why does this procedure guarantee that the final output distribution is identical to sampling from the target model directly?",
+      "warmup_runs": 3
+    },
+    {
+      "ttft_s": 0.05968452100023569,
+      "itl_s": 0.036278205411758344,
+      "total_time_s": 9.310626900998614,
+      "tokens_generated": 256,
+      "throughput_tok_s": 27.495463272461564,
+      "peak_vram_mb": 19115.0,
+      "peak_vram_torch_mb": 17473.42529296875,
+      "prompt": "You are reviewing a pull request that adds paged KV-cache management to an LLM inference engine. The author claims their implementation eliminates memory fragmentation by allocating fixed-size 'pages' of key-value tensors and mapping logical sequence positions to physical page slots via a block table. List five concrete things you would check or test to convince yourself the implementation is correct and production-ready.",
+      "warmup_runs": 3
+    }
+  ],
+  "concurrency_sweep": [
+    {
+      "concurrency": 1,
+      "total_time_s": 8.788952454000537,
+      "total_tokens": 256,
+      "throughput_tok_s": 29.127475810097764,
+      "peak_vram_mb": 19115.0,
+      "peak_vram_torch_mb": 17404.806640625,
+      "warmup_runs": 3
+    }
+  ],
+  "notes": []
+}
