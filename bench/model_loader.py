@@ -17,25 +17,20 @@ Usage:
 
 from __future__ import annotations
 
-import ctypes
-import sysconfig
+import sys
 from pathlib import Path
 from typing import Optional
 
-# ---------------------------------------------------------------------------
-# Pre-load libnvJitLink.so.13 BEFORE any torch/transformers import.
-# PyTorch cu130 bundles CUDA 13 libs inside the venv; bitsandbytes needs
-# libnvJitLink at dlopen time and it is not on LD_LIBRARY_PATH by default.
-# ctypes.RTLD_GLOBAL makes the symbols globally visible, equivalent to
-# adding the dir to LD_LIBRARY_PATH for this process only.
-# ---------------------------------------------------------------------------
-_nvjitlink = (
-    Path(sysconfig.get_paths()["purelib"]) / "nvidia/cu13/lib/libnvJitLink.so.13"
-)
-if _nvjitlink.exists():
-    ctypes.CDLL(str(_nvjitlink), mode=ctypes.RTLD_GLOBAL)
+# Pre-load all bundled CUDA 13 libs (libcusparseLt, libnvJitLink, libnccl,
+# libnvshmem_host) before any torch/bitsandbytes import.  See inferd/env.py
+# for the full explanation.  bench/ lives in the worktree alongside inferd/,
+# so we add the project root to sys.path if needed.
+_project_root = Path(__file__).resolve().parent.parent
+if str(_project_root) not in sys.path:
+    sys.path.insert(0, str(_project_root))
+import inferd.env  # noqa: F401
 
-import torch  # noqa: E402  (must come after ctypes preload)
+import torch  # noqa: E402
 from transformers import AutoModelForMultimodalLM, AutoTokenizer  # noqa: E402
 
 # Vision attribute names to probe and remove (order matters — most common first).
