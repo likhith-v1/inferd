@@ -39,6 +39,13 @@
 - **Golden eval:** `30/30` deterministic expected-contains checks passed; output written to `runs/golden_eval.jsonl`.
 - **Notes:** Flash Attention 2 was unavailable; Unsloth used fallback kernels. Triton `_POSIX_C_SOURCE` and bitsandbytes future warnings were non-blocking.
 
+## 2026-06-27 — Phase 03 27B Merge: Deferred (OOM, skip for now)
+
+- **Decision:** Skip the 27B adapter merge for Phase 03. Phase 04–09 will load the 27B as base-in-4bit + PEFT adapter directly. Merged weights are not required until Phase 10 FP8 quantization.
+- **Root cause of OOM:** Merging 27B bf16 requires ~54GB to materialize the output. Both VRAM (32GB) and system RAM were insufficient. The `export.py` `--device-map cpu` flag added here is still needed but does not solve the RAM constraint.
+- **Phase 10 action required:** Design a streaming/sharded merge or use a quantize-from-PEFT path (e.g., `llm-compressor`) that avoids materializing full bf16 weights. Decide at Phase 10 implementation.
+- **9B merge:** Completed successfully with `device_map="cuda:0"` (18GB fits in 32GB VRAM). No change needed for 9B.
+
 ## 2026-06-27 — Phase 03 27B Training Result
 
 - **Model:** `Qwen/Qwen3.6-27B`, loaded from `weights/Qwen3.6-27B`.
