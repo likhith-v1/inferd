@@ -96,3 +96,22 @@
 - **Correctness gate:** multi-token per-position TV vs a bootstrapped direct-vs-direct null envelope by default; first-token TV + χ² remains available for faster checks. No magic threshold.
 - **α-lift budget:** moderate — ~10k completions sampled from `merged/9b`, train 0.8B ~1 epoch.
 - **Fallback drafts:** authorized (Qwen3.5-2B/4B) if 0.8B α nets no speedup.
+
+## 2026-06-27 — Phase 05 start: page-table contract first
+
+- **Decision:** Start paged KV with an isolated `PagedKVCache` allocator/page-table, `PagedHybridCache` Qwen3.5 cache adapter, and reference `paged_attention` gather path before replacing Qwen attention internals.
+- **Rationale:** Qwen3.5 is hybrid: only `full_attention` layers have per-position KV pages, while `linear_attention` layers carry fixed recurrent/conv state. The page-table contract and hybrid cache round-trip must be correct before model-runner integration or phase-06 scheduler budgeting.
+- **Current validation:** `core.paged_cache --selfcheck`, `core.paged_attn --selfcheck`, `bench.paged_equiv --selfcheck`, and `tests/test_paged_equiv.py` pass on CPU, including block-boundary lengths `{1,15,16,17,31,32,33}` and synthetic Qwen hybrid cache round-trip.
+- **Benchmark status:** `bench.harness --engine paged` is a cache-level microbenchmark that reports formula-based KV MB and fragmentation. It does **not** yet claim full paged runtime speedup.
+- **Model-level gate:** `UV_PROJECT_ENVIRONMENT=/home/likhi/inferd/.venv uv run python -m bench.paged_equiv --target /home/likhi/inferd/merged/9b` PASS on 3 prompts with block size 16: `max_abs=0`, `max_rel=0` for all prompts. This validates lossless Qwen3.5 hybrid-cache page-table round-trip against real next-token logits.
+
+## 2026-06-27 — Phase 05 review fixes (post-Codex review)
+
+Addressed findings from a code review of the initial Phase-05 implementation:
+- **Equivalence test was tautological → independent reference.** The synthetic gate compared `paged_attention` to `dense_attention`, but the former *calls* the latter. Added `sdpa_reference` (torch SDPA) in `core/paged_attn.py` and rewrote `tests/test_paged_equiv.py` to validate paged gather-and-attend against SDPA across page boundaries `{1,15,16,17,31,32,33}` and GQA/MHA head ratios.
+- **Storage-only equivalence → model-level COMPUTE equivalence.** Added `core/paged_attn_interface.py` + `bench.paged_equiv --mode compute`: routes the real 9B's full-attention **decode** step through the paged path (store K/V into `PagedKVCache`, gather, attend) and compares next-token logits to native attention. Result: **`max_abs=0`** across prompts (decode attention computed from pages is bit-identical to the model's eager attention). Routing is done by patching the module `eager_attention_forward` global (not a custom `_attn_implementation` name), because HF couples attention-mask preparation to the impl name — a custom name gets sdpa-style (mask=None) prep that breaks causal prefill. `dense_attention` was aligned to eager's precision recipe (Q·K in working dtype, softmax fp32) so the match is exact.
+- **VRAM win measured, not analytic.** `bench/runners/paged.py` now allocates paged blocks vs naive contiguous prealloc on GPU and reports `torch.cuda.max_memory_allocated`. Measured ratios match analytic: paged uses ~12.5%–31% of naive prealloc (c=1→0.125, c=16→0.31) on the Qwen3.5-9B full-attention shape (36 layers, 8 kv heads, head_dim 128, bf16).
+- **dtype + safety:** paged cache/runner default to **bf16** (match the model); `dense_attention` documented/guarded as single-query decode-only (no causal mask).
+- **Tests:** run via `python -m unittest tests.test_paged_equiv` (pytest is not a project dependency; the plan's `uv run python -m pytest` command should be updated or pytest added).
+
+**Still open (honest):** (1) no Triton paged-attention kernel and no FlashAttention-varlen fallback — the paged compute path is a correctness reference (gather + dense/SDPA), so there is no kernel-level perf win yet; (2) no *runtime* paged cache: generation still stores KV in HF's contiguous `DynamicCache` — the compute gate proves correctness by routing one decode step through pages, but the model does not yet persist KV in pages across steps (that needs a paged `Cache` subclass replacing `DynamicCache`, handling the hybrid linear states). These two are the remaining Phase-05 work before the VRAM win is realized end-to-end.

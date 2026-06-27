@@ -107,7 +107,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="Run metric self-check (no GPU/model needed) and exit.",
     )
-    p.add_argument("--engine", choices=["hf", "vllm", "spec"], default="hf")
+    p.add_argument("--engine", choices=["hf", "vllm", "spec", "paged"], default="hf")
     p.add_argument(
         "--model", default="Qwen3.5-9B",
         help="Model subdirectory under weights/ (e.g. Qwen3.5-9B).",
@@ -120,6 +120,11 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p.add_argument("--gamma", default="2,4,8", help="Comma-separated gamma sweep (engine=spec).")
     p.add_argument("--n-prompts", type=int, default=None, dest="n_prompts",
                    help="Limit number of workload prompts (engine=spec).")
+    # --- paged-cache (engine=paged) ---
+    p.add_argument("--block-size", type=int, default=16, dest="block_size",
+                   help="KV block size for paged-cache accounting (engine=paged).")
+    p.add_argument("--report-vram", action="store_true", dest="report_vram",
+                   help="Accepted for phase-05 command compatibility; paged runner reports KV MB.")
     p.add_argument("--seed", type=int, default=0)
     p.add_argument("--max-tokens", type=int, default=256, dest="max_tokens")
     p.add_argument(
@@ -192,6 +197,24 @@ def main(argv: list[str] | None = None) -> int:
             results_dir=args.results_dir,
         )
         print("\n[harness] spec-decode run complete.")
+
+    elif args.engine == "paged":
+        from bench.runners.paged import run
+        result = run(
+            concurrency_grid=concurrency_grid,
+            max_tokens=args.max_tokens,
+            block_size=args.block_size,
+            results_dir=args.results_dir,
+            seed=args.seed,
+        )
+        print("\n[harness] paged-cache microbenchmark complete.")
+        for pt in result["points"]:
+            print(
+                f"  c={pt['concurrency']:>2} blocks={pt['allocated_blocks']:>4} "
+                f"paged={pt['paged_kv_mb']:>8.2f}MiB "
+                f"naive={pt['naive_prealloc_kv_mb']:>8.2f}MiB "
+                f"ratio={pt['memory_ratio_vs_naive']:.3f}"
+            )
 
     return 0
 

@@ -28,7 +28,7 @@ from bench.metrics import (
     throughput,
     ttft,
 )
-from bench.model_loader import load, vram_used_gb
+from bench.model_loader import load
 from bench.workload import (
     CANONICAL,
     GREEDY,
@@ -41,17 +41,6 @@ from bench.workload import (
 WEIGHTS_ROOT = Path(__file__).parent.parent.parent / "weights"
 
 
-def _make_generate_kwargs(profile: SamplingProfile, max_new_tokens: int) -> dict:
-    kw: dict = {
-        "max_new_tokens": max_new_tokens,
-        "do_sample": profile.temperature > 0,
-    }
-    if profile.temperature > 0:
-        kw["temperature"] = profile.temperature
-        kw["top_p"] = profile.top_p
-    return kw
-
-
 def _single_stream_run(
     lm,
     lm_head,
@@ -60,6 +49,7 @@ def _single_stream_run(
     profile: SamplingProfile,
     max_tokens: int,
     warmup_runs: int,
+    seed: int,
     device: str = "cuda:0",
 ) -> SingleStreamResult:
     """
@@ -71,8 +61,7 @@ def _single_stream_run(
 
     TTFT and ITL are only valid at concurrency=1.
     """
-    gen_kwargs = _make_generate_kwargs(profile, max_tokens)
-    torch.manual_seed(profile.seed)
+    torch.manual_seed(seed)
 
     def _encode(text: str):
         return tokenizer(text, return_tensors="pt").input_ids.to(device)
@@ -105,7 +94,7 @@ def _single_stream_run(
         # This keeps the runner framework-agnostic for the phase-04 swap.
         nonlocal first_token_time, generated_tokens
 
-        torch.manual_seed(profile.seed)
+        torch.manual_seed(seed)
         ids = input_ids.clone()
         tokens_so_far = 0
 
@@ -188,6 +177,7 @@ def _concurrency_run(
     profile: SamplingProfile,
     max_tokens: int,
     warmup_runs: int,
+    seed: int,
     device: str = "cuda:0",
 ) -> ConcurrencySweepPoint:
     """
@@ -196,8 +186,10 @@ def _concurrency_run(
     Left-pads all prompts to the same length.
     Throughput = total new tokens / batch wall time.
     """
-    gen_kwargs = _make_generate_kwargs(profile, max_tokens)
-    torch.manual_seed(profile.seed)
+    torch.manual_seed(seed)
+    pad_id = tokenizer.pad_token_id
+    if pad_id is None:
+        pad_id = tokenizer.eos_token_id
 
     # Pick `concurrency` prompts (cycle if needed).
     batch_prompts = [prompts[i % len(prompts)] for i in range(concurrency)]
@@ -251,17 +243,19 @@ def _concurrency_run(
             else:
                 next_ids = next_logits.argmax(dim=-1)
 
-            # Count only sequences not yet finished.
-            new_tokens = (~done).sum().item()
-            total_new += new_tokens
-
-            done |= next_ids == tokenizer.eos_token_id
+            active = ~done
+            next_ids = torch.where(
+                active,
+                next_ids,
+                torch.full_like(next_ids, pad_id),
+            )
+            total_new += active.sum().item()
+            done = done | (active & (next_ids == tokenizer.eos_token_id))
             if done.all():
                 break
 
             ids = torch.cat([ids, next_ids.unsqueeze(1)], dim=1)
-            new_mask = torch.ones(concurrency, 1, dtype=attn.dtype, device=device)
-            attn = torch.cat([attn, new_mask], dim=1)
+            attn = torch.cat([attn, active.unsqueeze(1).to(attn.dtype)], dim=1)
 
         t1 = time.perf_counter()
 
@@ -324,7 +318,8 @@ def run(
     for i, prompt in enumerate(PROMPTS):
         print(f"  [{i+1}/{len(PROMPTS)}] {prompt[:60]!r}...")
         sr = _single_stream_run(
-            lm, lm_head, tokenizer, prompt, profile, max_tokens, warmup_runs, device
+            lm, lm_head, tokenizer, prompt, profile, max_tokens, warmup_runs,
+            seed + i, device,
         )
         result.single_stream.append(sr)
         print(
@@ -337,7 +332,8 @@ def run(
     for c in concurrency_grid:
         print(f"  concurrency={c} ...", end="", flush=True)
         sp = _concurrency_run(
-            lm, lm_head, tokenizer, PROMPTS, c, profile, max_tokens, warmup_runs, device
+            lm, lm_head, tokenizer, PROMPTS, c, profile, max_tokens, warmup_runs,
+            seed, device,
         )
         result.concurrency_sweep.append(sp)
         print(

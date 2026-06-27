@@ -1,0 +1,115 @@
+{
+  "engine": "paged",
+  "role": "cache_microbench",
+  "model_shape": {
+    "layers": 36,
+    "kv_heads": 8,
+    "head_dim": 128,
+    "dtype": "bfloat16",
+    "block_size": 16
+  },
+  "max_tokens": 256,
+  "points": [
+    {
+      "concurrency": 1,
+      "lengths": [
+        17
+      ],
+      "logical_tokens": 17,
+      "allocated_blocks": 2,
+      "allocated_tokens": 32,
+      "internal_fragmentation_tokens": 15,
+      "naive_prealloc_tokens": 256,
+      "paged_kv_mb_analytic": 4.5,
+      "naive_prealloc_kv_mb_analytic": 36.0,
+      "memory_ratio_vs_naive_analytic": 0.125,
+      "paged_kv_mb_measured": 4.5,
+      "naive_prealloc_kv_mb_measured": 36.0,
+      "memory_ratio_vs_naive_measured": 0.125,
+      "device": "cuda:0",
+      "append_s": 0.062634,
+      "attention_reference_s": 0.361931
+    },
+    {
+      "concurrency": 4,
+      "lengths": [
+        17,
+        31,
+        32,
+        33
+      ],
+      "logical_tokens": 113,
+      "allocated_blocks": 9,
+      "allocated_tokens": 144,
+      "internal_fragmentation_tokens": 31,
+      "naive_prealloc_tokens": 1024,
+      "paged_kv_mb_analytic": 20.25,
+      "naive_prealloc_kv_mb_analytic": 144.0,
+      "memory_ratio_vs_naive_analytic": 0.1406,
+      "paged_kv_mb_measured": 20.25,
+      "naive_prealloc_kv_mb_measured": 144.0,
+      "memory_ratio_vs_naive_measured": 0.1406,
+      "device": "cuda:0",
+      "append_s": 0.059953,
+      "attention_reference_s": 0.005482
+    },
+    {
+      "concurrency": 16,
+      "lengths": [
+        17,
+        31,
+        32,
+        33,
+        47,
+        64,
+        79,
+        96,
+        113,
+        128,
+        191,
+        256,
+        17,
+        31,
+        32,
+        33
+      ],
+      "logical_tokens": 1200,
+      "allocated_blocks": 80,
+      "allocated_tokens": 1280,
+      "internal_fragmentation_tokens": 80,
+      "naive_prealloc_tokens": 4096,
+      "paged_kv_mb_analytic": 180.0,
+      "naive_prealloc_kv_mb_analytic": 576.0,
+      "memory_ratio_vs_naive_analytic": 0.3125,
+      "paged_kv_mb_measured": 180.0,
+      "naive_prealloc_kv_mb_measured": 576.0,
+      "memory_ratio_vs_naive_measured": 0.3125,
+      "device": "cuda:0",
+      "append_s": 0.667646,
+      "attention_reference_s": 0.009459
+    }
+  ],
+  "notes": [
+    "Cache-level accounting only; full Qwen model_runner paged integration is not claimed.",
+    "Qwen3.5 hybrid linear-attention states are fixed recurrent state, not paged KV."
+  ],
+  "env": {
+    "timestamp": "2026-06-27T14:43:54Z",
+    "seed": 0,
+    "workload_hash": "ac7ee564a456d252",
+    "python": "3.13.14 (main, Jun 23 2026, 15:18:27) [Clang 22.1.3 ]",
+    "platform": "Linux-6.18.33.1-microsoft-standard-WSL2-x86_64-with-glibc2.43",
+    "torch": "2.11.0+cu130",
+    "cuda_available": true,
+    "gpu_name": "NVIDIA GeForce RTX 5090",
+    "gpu_capability": [
+      12,
+      0
+    ],
+    "cuda_version": "13.0",
+    "transformers": "5.3.0",
+    "driver_version": "610.62",
+    "vram_total_mb": "32607 MiB",
+    "git_commit": "c8ec386"
+  }
+}

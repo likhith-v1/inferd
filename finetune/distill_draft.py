@@ -20,6 +20,7 @@ Generation uses a batched left-padded decode over the stripped target backbone
 from __future__ import annotations
 
 import argparse
+import random
 import subprocess
 import sys
 from pathlib import Path
@@ -104,8 +105,10 @@ def generate(target_path, n_samples, max_new_tokens, batch_size, seed, val_frac=
         print(f"  generated {min(b+batch_size, len(rows))}/{len(rows)}", flush=True)
 
     n_val = max(1, int(len(samples) * val_frac))
-    write_jsonl(OUT_DIR / "validation.jsonl", samples[:n_val])
-    write_jsonl(OUT_DIR / "train.jsonl", samples[n_val:])
+    shuffled = samples[:]
+    random.Random(seed).shuffle(shuffled)
+    write_jsonl(OUT_DIR / "validation.jsonl", shuffled[:n_val])
+    write_jsonl(OUT_DIR / "train.jsonl", shuffled[n_val:])
     print(f"[distill] wrote {len(samples)-n_val} train / {n_val} val to {OUT_DIR}")
 
 
