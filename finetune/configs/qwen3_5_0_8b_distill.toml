@@ -1,0 +1,31 @@
+[model]
+id = "Qwen/Qwen3.5-0.8B"
+local_path = "weights/Qwen3.5-0.8B"
+max_seq_length = 2048
+
+[dataset]
+# Sequence-level KD: targets are sampled from the fine-tuned 9B (see distill_draft.py).
+train_jsonl = "data/processed/draft_distill/train.jsonl"
+validation_jsonl = "data/processed/draft_distill/validation.jsonl"
+text_field = "text"
+
+[lora]
+r = 16
+alpha = 32
+dropout = 0.0
+target_modules = ["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"]
+
+[training]
+output_dir = "adapters/draft-distilled"
+run_name = "qwen3_5_0_8b_draft_distill"
+per_device_train_batch_size = 2
+per_device_eval_batch_size = 2
+gradient_accumulation_steps = 8
+learning_rate = 0.0002
+num_train_epochs = 1
+warmup_steps = 30
+logging_steps = 10
+eval_steps = 200
+save_steps = 200
+max_steps = -1
+seed = 0
