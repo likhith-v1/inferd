@@ -1,4 +1,9 @@
 weights/
+data/raw/
+data/processed/
+adapters/
+merged/
+runs/
 .venv/
 bench/.venv-vllm/
 unsloth_compiled_cache/
