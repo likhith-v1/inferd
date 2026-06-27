@@ -107,11 +107,19 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="Run metric self-check (no GPU/model needed) and exit.",
     )
-    p.add_argument("--engine", choices=["hf", "vllm"], default="hf")
+    p.add_argument("--engine", choices=["hf", "vllm", "spec"], default="hf")
     p.add_argument(
         "--model", default="Qwen3.5-9B",
         help="Model subdirectory under weights/ (e.g. Qwen3.5-9B).",
     )
+    # --- speculative-decoding (engine=spec) ---
+    p.add_argument("--target", default="merged/9b", help="Target model path (engine=spec).")
+    p.add_argument("--draft", default="weights/Qwen3.5-0.8B", help="Draft model path (engine=spec).")
+    p.add_argument("--draft-adapter", default=None, dest="draft_adapter",
+                   help="Distilled-draft LoRA adapter dir for the alpha-lift run.")
+    p.add_argument("--gamma", default="2,4,8", help="Comma-separated gamma sweep (engine=spec).")
+    p.add_argument("--n-prompts", type=int, default=None, dest="n_prompts",
+                   help="Limit number of workload prompts (engine=spec).")
     p.add_argument("--seed", type=int, default=0)
     p.add_argument("--max-tokens", type=int, default=256, dest="max_tokens")
     p.add_argument(
@@ -169,6 +177,21 @@ def main(argv: list[str] | None = None) -> int:
         else:
             print("\n[harness] vLLM ceiling run complete.")
         _print_summary(result)
+
+    elif args.engine == "spec":
+        from bench.runners.spec import run
+        gammas = [int(g) for g in args.gamma.split(",")]
+        run(
+            target_path=args.target,
+            draft_path=args.draft,
+            draft_adapter=args.draft_adapter,
+            gammas=gammas,
+            max_tokens=args.max_tokens,
+            seed=args.seed,
+            n_prompts=args.n_prompts,
+            results_dir=args.results_dir,
+        )
+        print("\n[harness] spec-decode run complete.")
 
     return 0
 
