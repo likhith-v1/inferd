@@ -119,7 +119,7 @@ def main() -> int:
 
     rate = passed / len(rows)
     print(f"[eval_golden] pass_rate={rate:.3f} ({passed}/{len(rows)})")
-    return 0 if rate > 0 else 1
+    return 0 if passed == len(rows) else 1
 
 
 if __name__ == "__main__":

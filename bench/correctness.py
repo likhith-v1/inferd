@@ -198,7 +198,6 @@ def run(
 
         # Bootstrap the null: TV between two independent direct halves of size n.
         null_tvs = []
-        gen = torch.Generator().manual_seed(seed + pi)
         for _ in range(bootstrap):
             a = _direct_next_tokens(target, prompt_ids, n, profile.temperature, profile.top_p)
             b = _direct_next_tokens(target, prompt_ids, n, profile.temperature, profile.top_p)
@@ -259,7 +258,12 @@ def run_seq(
         for t in range(length):
             spec_h = _hist(_pos_tokens(spec, t))
             dir_h = _hist(_pos_tokens(direct, t))
+            if not spec_h and not dir_h:
+                continue
             if not spec_h or not dir_h:
+                prompt_ok = False
+                print(f"[correctness] prompt[{pi}] pos[{t}] -> FAIL "
+                      f"(empty histogram: spec={bool(spec_h)} direct={bool(dir_h)})")
                 continue
             tv_obs = total_variation(spec_h, dir_h)
             # Null: TV between two disjoint random halves of the direct pool.
