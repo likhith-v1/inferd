@@ -27,6 +27,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--out", type=Path, default=Path("merged/9b"))
     parser.add_argument("--merge", action="store_true", help="Merge adapter into base weights.")
     parser.add_argument("--strip-vision", action="store_true", default=True)
+    parser.add_argument("--device-map", default="cuda:0", help="Use 'cpu' for 27B merge to avoid VRAM OOM.")
     parser.add_argument("--offline", action="store_true")
     parser.add_argument("--selfcheck", action="store_true")
     return parser.parse_args()
@@ -69,7 +70,7 @@ def main() -> int:
     base = AutoModelForMultimodalLM.from_pretrained(
         base_ref,
         dtype=torch.bfloat16,
-        device_map="cuda:0",
+        device_map=args.device_map,
     )
     tokenizer = AutoTokenizer.from_pretrained(base_ref)
     print(f"[export] loading adapter={args.adapter}")
