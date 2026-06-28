@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "inferd"
 version = "0.1.0"
-description = "Local LLM inference stack: QLoRA fine-tune → speculative decoding → paged KV-cache → continuous batching, served via FastAPI. Runs fully local on RTX 5090."
+description = "Work-in-progress local LLM inference stack: QLoRA fine-tune, speculative decoding, paged KV-cache, and continuous batching. Runs fully local on RTX 5090."
 readme = "README.md"
 requires-python = ">=3.13.14,<3.14"
 dependencies = [
