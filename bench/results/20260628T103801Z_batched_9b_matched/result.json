@@ -1,0 +1,87 @@
+{
+  "engine": "batched",
+  "role": "phase06_scheduler_matched",
+  "model": "/home/likhi/inferd/merged/9b",
+  "profile": "greedy",
+  "max_tokens": 96,
+  "env": {
+    "timestamp": "2026-06-28T10:37:47Z",
+    "seed": 0,
+    "workload_hash": "ebc121d5f9503eff",
+    "python": "3.13.14 (main, Jun 23 2026, 15:18:27) [Clang 22.1.3 ]",
+    "platform": "Linux-6.18.33.1-microsoft-standard-WSL2-x86_64-with-glibc2.43",
+    "torch": "2.11.0+cu130",
+    "cuda_available": true,
+    "gpu_name": "NVIDIA GeForce RTX 5090",
+    "gpu_capability": [
+      12,
+      0
+    ],
+    "cuda_version": "13.0",
+    "transformers": "5.3.0",
+    "driver_version": "610.62",
+    "vram_total_mb": "32607 MiB",
+    "git_commit": "f881a5b"
+  },
+  "single_stream": [],
+  "concurrency_sweep": [
+    {
+      "concurrency": 1,
+      "total_time_s": 2.166431284000282,
+      "total_tokens": 96,
+      "throughput_tok_s": 44.31250633656724,
+      "peak_vram_mb": 19433.0,
+      "peak_vram_torch_mb": 17244.96923828125,
+      "warmup_runs": 1
+    },
+    {
+      "concurrency": 2,
+      "total_time_s": 2.452507162000984,
+      "total_tokens": 192,
+      "throughput_tok_s": 78.28723315260311,
+      "peak_vram_mb": 19449.0,
+      "peak_vram_torch_mb": 17404.01025390625,
+      "warmup_runs": 1
+    },
+    {
+      "concurrency": 4,
+      "total_time_s": 2.7119717720015615,
+      "total_tokens": 384,
+      "throughput_tok_s": 141.59439414687938,
+      "peak_vram_mb": 19483.0,
+      "peak_vram_torch_mb": 17722.99072265625,
+      "warmup_runs": 1
+    },
+    {
+      "concurrency": 8,
+      "total_time_s": 3.242985385000793,
+      "total_tokens": 768,
+      "throughput_tok_s": 236.81882858679987,
+      "peak_vram_mb": 19873.0,
+      "peak_vram_torch_mb": 18371.02294921875,
+      "warmup_runs": 1
+    },
+    {
+      "concurrency": 16,
+      "total_time_s": 4.305398966000212,
+      "total_tokens": 1536,
+      "throughput_tok_s": 356.76136221748806,
+      "peak_vram_mb": 21345.0,
+      "peak_vram_torch_mb": 19768.38818359375,
+      "warmup_runs": 1
+    },
+    {
+      "concurrency": 32,
+      "total_time_s": 6.652056222999818,
+      "total_tokens": 3072,
+      "throughput_tok_s": 461.8120919330787,
+      "peak_vram_mb": 24177.0,
+      "peak_vram_torch_mb": 22493.7783203125,
+      "warmup_runs": 1
+    }
+  ],
+  "notes": [
+    "Matched workload vs the naive HF rung: exactly `concurrency` requests admitted at once and decoded in one batched, KV-cached loop to max_tokens (total_requests == concurrency). Like-for-like work at every batch width.",
+    "Numerically equivalent to single-stream (bench.batched_equiv, max|\u0394logit| at the bf16 floor)."
+  ]
+}

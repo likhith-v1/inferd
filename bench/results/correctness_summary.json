@@ -1,0 +1,27 @@
+{
+  "passed": true,
+  "n": 1500,
+  "length": 6,
+  "gamma": 4,
+  "lines": [
+    "[correctness] prompt[0] pos[0] TV=0.0167 null_p99=0.0347 -> PASS",
+    "[correctness] prompt[0] pos[1] TV=0.0260 null_p99=0.0587 -> PASS",
+    "[correctness] prompt[0] pos[2] TV=0.0773 null_p99=0.0933 -> PASS",
+    "[correctness] prompt[0] pos[3] TV=0.0960 null_p99=0.1373 -> PASS",
+    "[correctness] prompt[0] pos[4] TV=0.1060 null_p99=0.1460 -> PASS",
+    "[correctness] prompt[0] pos[5] TV=0.1480 null_p99=0.1780 -> PASS",
+    "[correctness] prompt[1] pos[0] TV=0.0000 null_p99=0.0000 -> PASS",
+    "[correctness] prompt[1] pos[1] TV=0.0247 null_p99=0.0440 -> PASS",
+    "[correctness] prompt[1] pos[2] TV=0.0247 null_p99=0.0387 -> PASS",
+    "[correctness] prompt[1] pos[3] TV=0.0473 null_p99=0.0573 -> PASS",
+    "[correctness] prompt[1] pos[4] TV=0.0620 null_p99=0.0627 -> PASS",
+    "[correctness] prompt[1] pos[5] TV=0.0400 null_p99=0.0553 -> PASS",
+    "[correctness] prompt[2] pos[0] TV=0.0000 null_p99=0.0000 -> PASS",
+    "[correctness] prompt[2] pos[1] TV=0.0213 null_p99=0.0453 -> PASS",
+    "[correctness] prompt[2] pos[2] TV=0.0233 null_p99=0.0560 -> PASS",
+    "[correctness] prompt[2] pos[3] TV=0.0407 null_p99=0.0613 -> PASS",
+    "[correctness] prompt[2] pos[4] TV=0.0113 null_p99=0.0540 -> PASS",
+    "[correctness] prompt[2] pos[5] TV=0.0133 null_p99=0.0500 -> PASS",
+    "[correctness:seq] PASS (n=1500, length=6, gamma=4, prompts=3)"
+  ]
+}
