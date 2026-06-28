@@ -163,3 +163,48 @@ Phase-05 follow-up); the per-step stack/split is cheap vs a 9B weight sweep but 
 not a paged kernel; (3) batched speculative decoding still not implemented; (4) the
 continuous-vs-static numbers need a warmup pass to remove the back-to-back ordering
 bias before being quoted as headline figures.
+
+## 2026-06-28 — Phase 10: FP8 hero (9B fallback — FP8 is a capacity play, not a latency one)
+
+**Context / scope fallback.** The intended hero is the *fine-tuned 27B* served FP8.
+No fine-tuned 27B exists on this box (no 27B base downloaded, no 27B adapter
+trained — only the 9B target, 0.8B draft, and the distilled-draft adapter). A
+27B QLoRA from scratch is a 6–12h, OOM-risky job outside the 2-day window, so per
+the phase-10 rollback this ran the documented **FP8 9B hero fallback** on
+`merged/9b`. The same code path serves a `merged/27b` via `--model`.
+
+**Contract-respecting FP8 path.** `model_loader.load(..., quantize=)` +
+`ModelRunner.load_target(..., quantize=)` gained an optional kwarg (default `None`
+→ unchanged bf16; existing callers untouched). `quantize="fp8"` = torchao
+**weight-only FP8** (e4m3); `"fp8-dynamic"` = W8A8 dynamic-activation FP8. lm_head
+stays bf16. `scripts/hero_fp8.py` serves single-stream **through the engine**
+(`ContinuousBatchScheduler`, concurrency=1) in all three precisions and compares
+tok/s, weight footprint, peak VRAM, and greedy coherence.
+
+**Measured (9B, single-stream greedy, 128 tok, RTX 5090):**
+
+| variant | decode tok/s | weight footprint | greedy output |
+|---|---|---|---|
+| bf16 | 44.7 | 17.1 GB | — |
+| fp8 (weight-only) | 9.9 (0.22×) | **10.5 GB (0.61×)** | **bit-identical to bf16** |
+| fp8-dynamic | 13.4 (0.30×) | 15.0 GB (0.88×) | coherent, diverges |
+
+**Findings (honest).**
+- **FP8 is a capacity win, not a single-stream latency win.** Weight-only FP8
+  halves the weight footprint with **bit-exact greedy output** — projecting the
+  27B from **≈50 GB bf16 (will not fit) to ≈30.7 GB FP8 (fits the 32 GB 5090)**.
+  That projection is the actual reason FP8 is scoped to the 27B.
+- **FP8 *slows* single-token decode on this stack** (0.22–0.30× bf16). Decode is
+  bandwidth-bound at M=1; torchao's FP8 paths on Blackwell (sm_120) / torch 2.11
+  have **no fused weight-only FP8 GEMM for M=1**, so the dequant runs unfused —
+  exactly the "FP8 kernel/path immaturity on Blackwell" risk the plan flagged.
+  FP8's compute advantage is in compute-bound prefill / large-batch, not the
+  single-stream decode regime the 27B hero lives in.
+
+**Still open (honest):** (1) no fine-tuned 27B → the headline FP8-27B serve is a
+*projection* from the 9B footprint, not a live capture; (2) the FP8 decode
+regression is a kernel-maturity issue, not an algorithmic one — a fused
+weight-only FP8 GEMM (or running FP8 only where compute-bound) would recover it;
+(3) peak-VRAM via nvidia-smi is contaminated by torch's allocator cache across
+back-to-back loads — the in-process `weight_footprint_mb` (memory_allocated right
+after load) is the trustworthy memory number.

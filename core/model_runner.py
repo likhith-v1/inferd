@@ -31,8 +31,13 @@ class ModelRunner:
         *,
         device: str = "cuda:0",
         dtype: torch.dtype = torch.bfloat16,
+        quantize: str | None = None,
     ) -> "ModelRunner":
-        lm, lm_head, tokenizer = load(Path(path), device=device, dtype=dtype)
+        """Load the text backbone. quantize="fp8" enables the phase-10 FP8 hero
+        path (W8A8 dynamic FP8 on the backbone Linears); default is bf16."""
+        lm, lm_head, tokenizer = load(
+            Path(path), device=device, dtype=dtype, quantize=quantize
+        )
         return cls(lm, lm_head, tokenizer, device=device)
 
     @classmethod
