@@ -119,10 +119,9 @@ def _direct_continuations(target, prompt_ids, n, length, temperature, top_p, chu
             for i in range(b):
                 if not done[i]:
                     t = int(nxt[i, 0])
+                    cols[i].append(t)
                     if t == eos:
                         done[i] = True
-                    else:
-                        cols[i].append(t)
             if done.all():
                 break
             logits, kv = target.forward(nxt, kv)

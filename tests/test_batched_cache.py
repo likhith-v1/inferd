@@ -98,6 +98,37 @@ class BatchedCacheTest(unittest.TestCase):
             self.assertEqual(rec.key_cache[0].shape, (1, H, L + 1, D))
             self.assertTrue(torch.equal(rec.key_cache[0][0, :, -1, :], torch.full((H, D), -1.0)))
 
+    def test_linear_first_full_attn_length(self):
+        """Layer 0 is linear: get_seq_length() is 0 but full-attn KV has real length."""
+
+        class LinearFirstCache:
+            def __init__(self, length: int, fill: float) -> None:
+                self.layer_types = ["linear", "linear", "full", "linear"]
+                self.transformer_layers = [2]
+                n = len(self.layer_types)
+                self.key_cache = [None] * n
+                self.value_cache = [None] * n
+                self.conv_states = [None] * n
+                self.recurrent_states = [None] * n
+                for i, t in enumerate(self.layer_types):
+                    if t == "linear":
+                        self.conv_states[i] = torch.full((1, 4, 3), fill)
+                        self.recurrent_states[i] = torch.full((1, 2, 3, 3), fill + 1.0)
+                    else:
+                        self.key_cache[i] = torch.full((1, H, length, D), fill)
+                        self.value_cache[i] = torch.full((1, H, length, D), fill + 0.5)
+
+            def get_seq_length(self, layer_idx=0):
+                if self.key_cache[layer_idx] is not None:
+                    return self.key_cache[layer_idx].shape[-2]
+                return 0
+
+        lengths = [3, 5, 2]
+        caches = [LinearFirstCache(L, float(i + 1)) for i, L in enumerate(lengths)]
+        batched, got_lengths = stack_caches(caches)
+        self.assertEqual(got_lengths, lengths)
+        self.assertEqual(batched.key_cache[2].shape, (3, H, 5, D))
+
     def test_linear_only_stack_split(self):
         """No full-attention layers: split must not use negative KV slice indices."""
 
