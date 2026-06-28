@@ -1,0 +1,192 @@
+{
+  "engine": "batched",
+  "role": "phase06_scheduler",
+  "model": "/home/likhi/inferd/merged/9b",
+  "profile": "greedy",
+  "max_tokens": 96,
+  "env": {
+    "timestamp": "2026-06-28T08:43:59Z",
+    "seed": 0,
+    "workload_hash": "ebc121d5f9503eff",
+    "python": "3.13.14 (main, Jun 23 2026, 15:18:27) [Clang 22.1.3 ]",
+    "platform": "Linux-6.18.33.1-microsoft-standard-WSL2-x86_64-with-glibc2.43",
+    "torch": "2.11.0+cu130",
+    "cuda_available": true,
+    "gpu_name": "NVIDIA GeForce RTX 5090",
+    "gpu_capability": [
+      12,
+      0
+    ],
+    "cuda_version": "13.0",
+    "transformers": "5.3.0",
+    "driver_version": "610.62",
+    "vram_total_mb": "32607 MiB",
+    "git_commit": "f881a5b"
+  },
+  "single_stream": [],
+  "concurrency_sweep": [
+    {
+      "concurrency": 1,
+      "total_time_s": 117.15693515400017,
+      "total_tokens": 2063,
+      "throughput_tok_s": 17.608859409715976,
+      "peak_vram_mb": 31838.0,
+      "peak_vram_torch_mb": 17294.40380859375,
+      "warmup_runs": 3
+    },
+    {
+      "concurrency": 2,
+      "total_time_s": 75.23022954299995,
+      "total_tokens": 2063,
+      "throughput_tok_s": 27.42248711099352,
+      "peak_vram_mb": 31869.0,
+      "peak_vram_torch_mb": 17468.77978515625,
+      "warmup_runs": 3
+    },
+    {
+      "concurrency": 4,
+      "total_time_s": 52.287977337000484,
+      "total_tokens": 2063,
+      "throughput_tok_s": 39.454576464180064,
+      "peak_vram_mb": 32058.0,
+      "peak_vram_torch_mb": 17773.14208984375,
+      "warmup_runs": 3
+    },
+    {
+      "concurrency": 8,
+      "total_time_s": 39.53071184700093,
+      "total_tokens": 2063,
+      "throughput_tok_s": 52.187271708756576,
+      "peak_vram_mb": 32088.0,
+      "peak_vram_torch_mb": 18410.96533203125,
+      "warmup_runs": 3
+    },
+    {
+      "concurrency": 16,
+      "total_time_s": 29.543403215997387,
+      "total_tokens": 2063,
+      "throughput_tok_s": 69.82946361720816,
+      "peak_vram_mb": 32125.0,
+      "peak_vram_torch_mb": 19769.96728515625,
+      "warmup_runs": 3
+    },
+    {
+      "concurrency": 32,
+      "total_time_s": 26.99697446799837,
+      "total_tokens": 2063,
+      "throughput_tok_s": 76.41597033198796,
+      "peak_vram_mb": 32113.0,
+      "peak_vram_torch_mb": 22485.5986328125,
+      "warmup_runs": 3
+    }
+  ],
+  "notes": [
+    "Continuous batching: FCFS admission, one BATCHED decode forward per iteration over the running set (per-seq caches stacked, full-attn KV left-padded, linear states cat'd).",
+    "Batched decode is numerically equivalent to single-stream (bench.batched_equiv, max|\u0394logit| at the bf16 floor).",
+    "Fixed pool of 32 requests processed at each batch width; surplus waits so continuous backfill (vs static-cohort drain) is exercised when concurrency < total.",
+    "Block budget is admission accounting over the phase-05 paged free-block model; actual KV still lives in ModelRunner/HF caches (no persistent paged runtime cache yet).",
+    "Speculative decoding is measured separately; phase 06 does not implement batched accept/replay."
+  ],
+  "scheduler_points": [
+    {
+      "concurrency": 1,
+      "continuous_tok_s": 17.608859409715976,
+      "waiting_sequences": 0,
+      "active_sequences": 0,
+      "completed_sequences": 32,
+      "failed_sequences": 0,
+      "admitted_sequences": 32,
+      "evicted_sequences": 32,
+      "iterations": 2063,
+      "total_generated_tokens": 2063,
+      "used_blocks": 0,
+      "free_blocks": 384,
+      "max_blocks_used": 11,
+      "static_tok_s": 17.589427153780928,
+      "continuous_speedup_vs_static": 1.0011047691186958
+    },
+    {
+      "concurrency": 2,
+      "continuous_tok_s": 27.42248711099352,
+      "waiting_sequences": 0,
+      "active_sequences": 0,
+      "completed_sequences": 32,
+      "failed_sequences": 0,
+      "admitted_sequences": 32,
+      "evicted_sequences": 32,
+      "iterations": 1035,
+      "total_generated_tokens": 2063,
+      "used_blocks": 0,
+      "free_blocks": 384,
+      "max_blocks_used": 20,
+      "static_tok_s": 25.423527473767958,
+      "continuous_speedup_vs_static": 1.078626368401792
+    },
+    {
+      "concurrency": 4,
+      "continuous_tok_s": 39.454576464180064,
+      "waiting_sequences": 0,
+      "active_sequences": 0,
+      "completed_sequences": 32,
+      "failed_sequences": 0,
+      "admitted_sequences": 32,
+      "evicted_sequences": 32,
+      "iterations": 558,
+      "total_generated_tokens": 2063,
+      "used_blocks": 0,
+      "free_blocks": 384,
+      "max_blocks_used": 38,
+      "static_tok_s": 35.792238606289004,
+      "continuous_speedup_vs_static": 1.1023221234686214
+    },
+    {
+      "concurrency": 8,
+      "continuous_tok_s": 52.187271708756576,
+      "waiting_sequences": 0,
+      "active_sequences": 0,
+      "completed_sequences": 32,
+      "failed_sequences": 0,
+      "admitted_sequences": 32,
+      "evicted_sequences": 32,
+      "iterations": 297,
+      "total_generated_tokens": 2063,
+      "used_blocks": 0,
+      "free_blocks": 384,
+      "max_blocks_used": 66,
+      "static_tok_s": 48.48064344564257,
+      "continuous_speedup_vs_static": 1.0764558388600998
+    },
+    {
+      "concurrency": 16,
+      "continuous_tok_s": 69.82946361720816,
+      "waiting_sequences": 0,
+      "active_sequences": 0,
+      "completed_sequences": 32,
+      "failed_sequences": 0,
+      "admitted_sequences": 32,
+      "evicted_sequences": 32,
+      "iterations": 179,
+      "total_generated_tokens": 2063,
+      "used_blocks": 0,
+      "free_blocks": 384,
+      "max_blocks_used": 120,
+      "static_tok_s": 67.27777615103058,
+      "continuous_speedup_vs_static": 1.0379276428586068
+    },
+    {
+      "concurrency": 32,
+      "continuous_tok_s": 76.41597033198796,
+      "waiting_sequences": 0,
+      "active_sequences": 0,
+      "completed_sequences": 32,
+      "failed_sequences": 0,
+      "admitted_sequences": 32,
+      "evicted_sequences": 32,
+      "iterations": 95,
+      "total_generated_tokens": 2063,
+      "used_blocks": 0,
+      "free_blocks": 384,
+      "max_blocks_used": 204
+    }
+  ]
+}
