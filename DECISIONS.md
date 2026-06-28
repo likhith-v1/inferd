@@ -115,3 +115,51 @@ Addressed findings from a code review of the initial Phase-05 implementation:
 - **Tests:** run via `python -m unittest tests.test_paged_equiv` (pytest is not a project dependency; the plan's `uv run python -m pytest` command should be updated or pytest added).
 
 **Still open (honest):** (1) no Triton paged-attention kernel and no FlashAttention-varlen fallback — the paged compute path is a correctness reference (gather + dense/SDPA), so there is no kernel-level perf win yet; (2) no *runtime* paged cache: generation still stores KV in HF's contiguous `DynamicCache` — the compute gate proves correctness by routing one decode step through pages, but the model does not yet persist KV in pages across steps (that needs a paged `Cache` subclass replacing `DynamicCache`, handling the hybrid linear states). These two are the remaining Phase-05 work before the VRAM win is realized end-to-end.
+
+## 2026-06-28 — Phase 06 scheduler scope with runtime KV gap
+
+- **Decision:** Implement Phase 06 as a scheduler-first continuous batching layer: FCFS whole-prompt admission, prompt+max-token block reservation, finished-request eviction, live metrics, and a headless `batched` benchmark runner.
+- **Important limitation:** The scheduler enforces the paged-cache free-block budget as accounting, but actual generation still uses `ModelRunner.forward()` with HF-backed opaque caches. Phase 05 has not yet landed a persistent paged runtime `Cache` subclass for Qwen3.5's hybrid full-attention + linear-attention state.
+- **Spec interaction:** Batched speculative decoding is not implemented in Phase 06. Speculative decoding remains measured separately from batching, with the writeup reporting the expected benefit fade and the existing Qwen3.5 replay tax from Phase 04.
+- **Rationale:** This gives Phase 07 a real request scheduler and metrics surface now, without hiding the remaining paged-runtime-cache work or taking on batched accept/replay complexity prematurely.
+
+## 2026-06-28 — Phase 06 review fixes: real batched execution (the throughput win)
+
+A review (code-review of Codex's first pass) found the headline gap: the initial
+scheduler decoded **one sequence at a time** (a per-`req` `backend.decode` loop),
+so it was an admission/eviction *simulator* with **no batched compute** — the
+throughput-vs-concurrency win the phase exists to show could not appear (each
+sequence paid its own full forward; the curve would be flat). Fixed:
+
+- **Real batched decode.** `core/batched_cache.py` (`stack_caches` / `split_caches`)
+  stacks the running sequences' per-seq caches into one batched cache each step:
+  full-attention K/V is **left-padded** to a common length and `cat` on the batch
+  dim; the hybrid **linear-attention conv/recurrent states are length-independent**,
+  so they `cat` directly. `ContinuousBatchScheduler.step()` now samples all running
+  sequences, then runs the still-active set through **one** `decode_batch` forward
+  (left-padded attention mask + per-row `position_ids` for correct RoPE), then
+  splits the cache back. `ModelRunner.forward` gained optional `position_ids` /
+  `cache_position` (contract-compatible extend).
+- **Why this is the win:** decode at 9B is bandwidth-bound on weight loads; batching
+  amortizes one weight sweep across N sequences. Measured (greedy, 9B):
+  **34.9 → 123 → 199 tok/s at concurrency 1 / 4 / 8 (5.7× at 8)**.
+- **Exactness proven:** `bench/batched_equiv.py` teacher-forces ragged prompts and
+  compares batched-vs-serial **logits**: `max|Δlogit| ≈ 0.49`, at the bf16 floor
+  (cf. eager-vs-sdpa ~0.12; a real positional/masking bug showed |Δ|=18). The lone
+  greedy argmax flip was a confirmed **bf16 near-tie** (top-2 margin 0.125 < noise
+  0.156) — same class as the Phase-04 finding, not a bug. `tests/test_batched_cache.py`
+  covers the stack/split surgery on CPU.
+- **Continuous vs naive static batching:** added a `continuous=False` static-cohort
+  policy + `--static-baseline`/`--vary-lengths`. With uniform lengths the two are
+  ~parity (nothing to backfill); with length variance continuous wins
+  (**1.13× at c=8**), and that's a *lower* bound because the static run is measured
+  second on a warm cache (back-to-back runs have a warmup-order bias — noted; it's
+  why c=4 reads 0.88×). The continuous advantage is workload-dependent, as expected.
+
+**Still open (honest):** (1) block budget is still admission *accounting* over the
+Phase-05 paged free-block model — real KV lives in HF caches, so it bounds
+concurrency, not VRAM precisely; (2) no persistent paged runtime cache (the
+Phase-05 follow-up); the per-step stack/split is cheap vs a 9B weight sweep but is
+not a paged kernel; (3) batched speculative decoding still not implemented; (4) the
+continuous-vs-static numbers need a warmup pass to remove the back-to-back ordering
+bias before being quoted as headline figures.
