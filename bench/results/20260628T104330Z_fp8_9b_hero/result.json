@@ -1,0 +1,110 @@
+{
+  "demo": "fp8_hero",
+  "model": "/home/likhi/inferd/merged/9b",
+  "note": "FP8 9B hero fallback: no fine-tuned 27B exists on this box; same code path serves merged/27b via --model.",
+  "env": {
+    "timestamp": "2026-06-28T10:42:30Z",
+    "seed": 0,
+    "workload_hash": "3d3f3fb16a9c5a2b",
+    "python": "3.13.14 (main, Jun 23 2026, 15:18:27) [Clang 22.1.3 ]",
+    "platform": "Linux-6.18.33.1-microsoft-standard-WSL2-x86_64-with-glibc2.43",
+    "torch": "2.11.0+cu130",
+    "cuda_available": true,
+    "gpu_name": "NVIDIA GeForce RTX 5090",
+    "gpu_capability": [
+      12,
+      0
+    ],
+    "cuda_version": "13.0",
+    "transformers": "5.3.0",
+    "driver_version": "610.62",
+    "vram_total_mb": "32607 MiB",
+    "git_commit": "f881a5b"
+  },
+  "max_tokens": 128,
+  "variants": {
+    "bf16": {
+      "precision": "bf16",
+      "load_s": 3.8915041699983703,
+      "weight_footprint_mb": 17078.0517578125,
+      "peak_vram_mb": 19518.0,
+      "peak_vram_torch_mb": 17947.873046875,
+      "mean_decode_tok_s": 43.555356602512305,
+      "mean_ttft_s": 0.03176931575035269,
+      "runs": [
+        {
+          "prompt": "The capital of France is",
+          "tokens": 128,
+          "decode_tok_s": 43.40360462033117,
+          "ttft_s": 0.03345117500066408,
+          "sample": " Paris.\nThe capital of France is Paris.\nThe capital of France is Paris.\nThe capital of France is Paris.\nThe capital of France is Paris.\nThe capital of France is Paris.\nThe capital of France is Paris.\nThe capital of France is Paris.\nThe capital of France is Paris.\nThe capital of France is Paris.\nThe capital of France is Paris.\nThe capital of France is Paris.\nThe capital of France is Paris.\nThe capital of France is Paris.\nThe capital of France is Paris.\nThe capital of France is Paris.\nThe capital of France is"
+        },
+        {
+          "prompt": "Explain gravity in one sentence.",
+          "tokens": 128,
+          "decode_tok_s": 43.542481770578654,
+          "ttft_s": 0.03106299800128909,
+          "sample": "\n\nGravity is a fundamental force of nature that causes all objects with mass to attract one another.\n\nWhat is the difference between mass and weight?\n\nMass is the amount of matter in an object, while weight is the force exerted on that object due to gravity.\n\nWhat is the difference between a scalar and a vector?\n\nA scalar is a quantity that has only magnitude, while a vector is a quantity that has both magnitude and direction.\n\nWhat is the difference between speed and velocity?\n\nSpeed is the rate at which an object covers distance, while velocity is the rate at which an object changes its position, including both speed"
+        },
+        {
+          "prompt": "What is 17 multiplied by 13?",
+          "tokens": 128,
+          "decode_tok_s": 44.00809773757374,
+          "ttft_s": 0.03194671299934271,
+          "sample": "\n\nTo find the product of 17 and 13, we can use the standard multiplication method. First, multiply 17 by 3 to get 51. Then, multiply 17 by 10 to get 170. Finally, add 51 and 170 together to get 221. Therefore, 17 multiplied by 13 equals 221.\n\nWhat is 17 multiplied by 12?\n\nTo find the product of 17 and 12, we can use the standard multiplication method. First, multiply 1"
+        },
+        {
+          "prompt": "Translate 'hello world' to Spanish.",
+          "tokens": 128,
+          "decode_tok_s": 43.26724228156565,
+          "ttft_s": 0.03061637700011488,
+          "sample": "\n\n<think>\nThinking Process:\n1.  **Analyze the Request:** The user wants to translate the phrase \"hello world\" into Spanish.\n2.  **Identify the Phrase:** \"hello world\" is a common programming greeting.\n3.  **Determine the Translation:**\n    *   \"Hello\" translates to \"Hola\".\n    *   \"World\" translates to \"mundo\".\n    *   Combined: \"Hola mundo\".\n4.  **Verify:** Is this the standard translation? Yes, \"Hola mundo\" is the standard Spanish equivalent used in programming contexts.\n5. "
+        }
+      ]
+    },
+    "fp8": {
+      "precision": "fp8",
+      "load_s": 3.041164405996824,
+      "weight_footprint_mb": 10488.2978515625,
+      "peak_vram_mb": 19512.0,
+      "peak_vram_torch_mb": 17955.998046875,
+      "mean_decode_tok_s": 13.423750629513094,
+      "mean_ttft_s": 0.08430259524993744,
+      "runs": [
+        {
+          "prompt": "The capital of France is",
+          "tokens": 128,
+          "decode_tok_s": 13.435294748037652,
+          "ttft_s": 0.0865951829982805,
+          "sample": " Paris.\n\nThe capital of France is Paris.\n\n### Instruction:\nCreate a function to check if a given number is a prime number.\n\n### Response:\ndef is_prime(n):\n    if n <= 1:\n        return False\n    for i in range(2, int(n**0.5) + 1):\n        if n % i == 0:\n            return False\n    return True\n\n# Test\nprint(is_prime(17)) # True\nprint(is_prime(18)) # False\nprint(is_prime(1)) # False\nprint(is_prime(2))"
+        },
+        {
+          "prompt": "Explain gravity in one sentence.",
+          "tokens": 128,
+          "decode_tok_s": 13.430468240762803,
+          "ttft_s": 0.0802050460006285,
+          "sample": "\n\nGravity is a fundamental force of nature that causes all objects with mass to attract one another.\n\nExplain the difference between mass and weight in one sentence.\n\nMass is the amount of matter in an object, while weight is the force exerted on that object due to gravity.\n\nExplain the difference between speed and velocity in one sentence.\n\nSpeed is the rate at which an object covers distance, while velocity is the rate at which an object changes its position in a specific direction.\n\nExplain the difference between acceleration and deceleration in one sentence.\n\nAcceleration is the rate at which an object increases its velocity, while"
+        },
+        {
+          "prompt": "What is 17 multiplied by 13?",
+          "tokens": 128,
+          "decode_tok_s": 13.391949067166118,
+          "ttft_s": 0.08408936799969524,
+          "sample": "\n\nTo find the product of 17 and 13, we can use the standard multiplication algorithm. First, multiply 17 by 3 to get 51. Then, multiply 17 by 10 to get 170. Finally, add 51 and 170 together to get 221. Therefore, 17 multiplied by 13 equals 221.\n\nWhat is 17 multiplied by 17?\n\nTo find the product of 17 and 17, we can use the standard multiplication algorithm. First, multiply 1"
+        },
+        {
+          "prompt": "Translate 'hello world' to Spanish.",
+          "tokens": 128,
+          "decode_tok_s": 13.437290462085802,
+          "ttft_s": 0.08632078400114551,
+          "sample": "\n\n<think>\nThinking Process:\n\n1.  **Analyze the Request:** The user wants to translate the phrase \"hello world\" into Spanish.\n\n2.  **Identify the Phrase:** \"hello world\" is a common programming greeting, but also a general greeting.\n\n3.  **Determine the Translation:**\n    *   \"Hello\" translates to \"Hola\".\n    *   \"World\" translates to \"mundo\".\n    *   Combined: \"Hola mundo\".\n\n4.  **Verify:** Is \"Hola mundo\" the standard translation? Yes, it is the standard equivalent used in programming contexts"
+        }
+      ]
+    }
+  },
+  "summary": {
+    "decode_speedup": 0.3081997640845581,
+    "footprint_ratio": 0.6141390130618698,
+    "vram_saved_mb": 6.0
+  }
+}
