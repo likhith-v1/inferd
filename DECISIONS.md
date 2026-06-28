@@ -163,3 +163,37 @@ Phase-05 follow-up); the per-step stack/split is cheap vs a 9B weight sweep but 
 not a paged kernel; (3) batched speculative decoding still not implemented; (4) the
 continuous-vs-static numbers need a warmup pass to remove the back-to-back ordering
 bias before being quoted as headline figures.
+
+## 2026-06-28 — Phase 07 FastAPI serving layer
+
+- **Decision:** Wrap the engine in an async FastAPI service (`serve/`) without making
+  the core depend on HTTP. The scheduler is synchronous/step-driven with no streaming
+  hooks, so serving runs a **single background "engine thread"** (`serve/engine.py`)
+  that exclusively owns the `ContinuousBatchScheduler`: HTTP `/generate` handlers
+  tokenize + post a Submit command to a thread-safe inbox and `await` token chunks off
+  a per-request `StreamChannel` (asyncio.Queue); the engine thread drains the inbox,
+  calls `step()`, and pushes new token text via `loop.call_soon_threadsafe`. No locks
+  on scheduler state (single owner thread); one tiny lock guards the in-flight counter.
+- **Locked choices:** backpressure = **bounded queue + HTTP 429** (cap = max_concurrent
+  + max_queue_depth, enforced by an atomic in-flight counter); disconnect cleanup = a
+  new public **`scheduler.cancel(request_id)`** (the one core touch — drops a waiting req
+  or evicts a running one and frees its blocks; unit-tested) called from the SSE
+  generator's `finally`; streaming = **hand-rolled `StreamingResponse`** with `data:`
+  SSE framing (no extra dep); oversized requests rejected **synchronously with 400**
+  (pre-checked against `max_model_len`/`max_blocks` before submit).
+- **Detok:** cumulative-decode-and-diff (`decode(all_ids)[prev_len:]`) — robust to BPE
+  merges / leading-space artefacts that per-token decode breaks.
+- **`/metrics` contract (frozen for 08):** `SchedulerMetrics.as_dict()` + server fields
+  `tokens_per_second` (rolling 5s window), `last_ttft_s`, `peak_vram_mb`, `uptime_s`,
+  `model` — see `serve/schemas.py:MetricsResponse`.
+- **Verified:** 22 unit tests green (no GPU; `create_app(engine=...)` injects a
+  FakeEngine to cover stream/429/400/disconnect→cancel/metrics-shape); live 9B smoke
+  streamed a coherent completion incrementally, `/metrics` showed blocks freed after
+  completion (used_blocks→0) at ~45 tok/s / TTFT ~1.7s; headless `bench.harness
+  --engine batched` still runs unchanged.
+- **Still open (honest):** (1) **sampling is server-level**, not per-request — the
+  scheduler samples with one shared temperature/top_p; per-request sampling needs
+  per-request params in `_sample_next` (documented follow-up; `GenerateRequest` only
+  takes prompt + max_tokens in v1). (2) No auth / multi-tenant / HTTPS (local
+  single-user, per scope). (3) Single served model at a time. (4) `security-review` and
+  `code-review` gates on the request-handling/threading path not yet run.
