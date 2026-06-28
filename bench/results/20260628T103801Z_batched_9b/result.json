@@ -1,0 +1,62 @@
+{
+  "engine": "batched",
+  "role": "phase06_scheduler",
+  "model": "/home/likhi/inferd/merged/9b",
+  "profile": "greedy",
+  "max_tokens": 96,
+  "env": {
+    "timestamp": "2026-06-28T10:37:47Z",
+    "seed": 0,
+    "workload_hash": "ebc121d5f9503eff",
+    "python": "3.13.14 (main, Jun 23 2026, 15:18:27) [Clang 22.1.3 ]",
+    "platform": "Linux-6.18.33.1-microsoft-standard-WSL2-x86_64-with-glibc2.43",
+    "torch": "2.11.0+cu130",
+    "cuda_available": true,
+    "gpu_name": "NVIDIA GeForce RTX 5090",
+    "gpu_capability": [
+      12,
+      0
+    ],
+    "cuda_version": "13.0",
+    "transformers": "5.3.0",
+    "driver_version": "610.62",
+    "vram_total_mb": "32607 MiB",
+    "git_commit": "f881a5b"
+  },
+  "single_stream": [],
+  "concurrency_sweep": [
+    {
+      "concurrency": 32,
+      "total_time_s": 6.652056222999818,
+      "total_tokens": 3072,
+      "throughput_tok_s": 461.8120919330787,
+      "peak_vram_mb": 24177.0,
+      "peak_vram_torch_mb": 22493.7783203125,
+      "warmup_runs": 1
+    }
+  ],
+  "notes": [
+    "Continuous batching: FCFS admission, one BATCHED decode forward per iteration over the running set (per-seq caches stacked, full-attn KV left-padded, linear states cat'd).",
+    "Batched decode is numerically equivalent to single-stream (bench.batched_equiv, max|\u0394logit| at the bf16 floor).",
+    "Fixed pool of 32 requests processed at each batch width; surplus waits so continuous backfill (vs static-cohort drain) is exercised when concurrency < total.",
+    "Block budget is admission accounting over the phase-05 paged free-block model; actual KV still lives in ModelRunner/HF caches (no persistent paged runtime cache yet).",
+    "Speculative decoding is measured separately; phase 06 does not implement batched accept/replay."
+  ],
+  "scheduler_points": [
+    {
+      "concurrency": 32,
+      "continuous_tok_s": 461.8120919330787,
+      "waiting_sequences": 0,
+      "active_sequences": 0,
+      "completed_sequences": 32,
+      "failed_sequences": 0,
+      "admitted_sequences": 32,
+      "evicted_sequences": 32,
+      "iterations": 96,
+      "total_generated_tokens": 3072,
+      "used_blocks": 0,
+      "free_blocks": 384,
+      "max_blocks_used": 271
+    }
+  ]
+}
