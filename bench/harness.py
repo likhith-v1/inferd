@@ -107,7 +107,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="Run metric self-check (no GPU/model needed) and exit.",
     )
-    p.add_argument("--engine", choices=["hf", "vllm", "spec", "paged"], default="hf")
+    p.add_argument("--engine", choices=["hf", "vllm", "spec", "paged", "batched"], default="hf")
     p.add_argument(
         "--model", default="Qwen3.5-9B",
         help="Model subdirectory under weights/ (e.g. Qwen3.5-9B).",
@@ -122,7 +122,15 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
                    help="Limit number of workload prompts (engine=spec).")
     # --- paged-cache (engine=paged) ---
     p.add_argument("--block-size", type=int, default=16, dest="block_size",
-                   help="KV block size for paged-cache accounting (engine=paged).")
+                   help="KV block size for paged-cache/scheduler accounting.")
+    p.add_argument("--max-blocks", type=int, default=None, dest="max_blocks",
+                   help="Scheduler block budget (engine=batched).")
+    p.add_argument("--total-requests", type=int, default=None, dest="total_requests",
+                   help="Fixed request pool processed at each batch width (engine=batched).")
+    p.add_argument("--static-baseline", action="store_true", dest="static_baseline",
+                   help="Also run naive static-cohort batching and report continuous/static ratio.")
+    p.add_argument("--vary-lengths", action="store_true", dest="vary_lengths",
+                   help="Seeded per-request max_tokens variance (exposes continuous-vs-static gap).")
     p.add_argument("--report-vram", action="store_true", dest="report_vram",
                    help="Accepted for phase-05 command compatibility; paged runner reports KV MB.")
     p.add_argument("--seed", type=int, default=0)
@@ -215,6 +223,25 @@ def main(argv: list[str] | None = None) -> int:
                 f"naive={pt['naive_prealloc_kv_mb']:>8.2f}MiB "
                 f"ratio={pt['memory_ratio_vs_naive']:.3f}"
             )
+
+    elif args.engine == "batched":
+        from bench.runners.batched import run
+        result = run(
+            model_name=args.model,
+            seed=args.seed,
+            max_tokens=args.max_tokens,
+            concurrency_grid=concurrency_grid,
+            warmup_runs=args.warmup_runs,
+            profile_name=args.profile,
+            results_dir=args.results_dir,
+            block_size=args.block_size,
+            max_blocks=args.max_blocks,
+            total_requests=args.total_requests,
+            static_baseline=args.static_baseline,
+            vary_lengths=args.vary_lengths,
+        )
+        print("\n[harness] continuous-batching run complete.")
+        _print_summary(result)
 
     return 0
 
