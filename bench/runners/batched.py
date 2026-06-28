@@ -55,7 +55,7 @@ def _default_max_blocks(
     return max(concurrency_grid) * blocks_per_seq
 
 
-def _run_scheduler_point(
+def _build_scheduler(
     runner: ModelRunner,
     prompts: list[str],
     *,
@@ -68,7 +68,7 @@ def _run_scheduler_point(
     profile_name: str,
     continuous: bool = True,
     vary_lengths: bool = False,
-) -> tuple[ConcurrencySweepPoint, dict]:
+) -> ContinuousBatchScheduler:
     profile = CANONICAL if profile_name == "canonical" else GREEDY
     backend = ModelRunnerBackend(runner)
     scheduler = ContinuousBatchScheduler(
@@ -84,13 +84,7 @@ def _run_scheduler_point(
         ),
     )
 
-    # A FIXED pool of requests, processed with batch width = concurrency. When
-    # concurrency < total_requests the surplus waits, so continuous batching can
-    # backfill freed slots (and static batching cannot) -- that is the comparison.
     pool = [prompts[i % len(prompts)] for i in range(total_requests)]
-    # Optional per-request length variance: the same seeded budgets are reused for
-    # the continuous and static runs so the comparison is apples-to-apples. With
-    # variance, static cohorts stall on stragglers while continuous backfills.
     rng = random.Random(seed)
     budgets = request_token_budgets(
         rng, total_requests, max_tokens, vary_lengths=vary_lengths
@@ -98,6 +92,56 @@ def _run_scheduler_point(
     for i, prompt in enumerate(pool):
         ids = runner.tokenizer(prompt, return_tensors="pt").input_ids[0].tolist()
         scheduler.submit(ids, max_tokens=budgets[i], prompt_text=prompt, request_id=i + 1)
+    return scheduler
+
+
+def _run_scheduler_point(
+    runner: ModelRunner,
+    prompts: list[str],
+    *,
+    concurrency: int,
+    total_requests: int,
+    max_tokens: int,
+    block_size: int,
+    max_blocks: int,
+    seed: int,
+    profile_name: str,
+    continuous: bool = True,
+    vary_lengths: bool = False,
+    warmup_runs: int = 0,
+) -> tuple[ConcurrencySweepPoint, dict]:
+    # Warmup: discard timing, but populate CUDA kernels and batched decode paths.
+    for _ in range(warmup_runs):
+        scheduler = _build_scheduler(
+            runner,
+            prompts,
+            concurrency=concurrency,
+            total_requests=total_requests,
+            max_tokens=max_tokens,
+            block_size=block_size,
+            max_blocks=max_blocks,
+            seed=seed,
+            profile_name=profile_name,
+            continuous=continuous,
+            vary_lengths=vary_lengths,
+        )
+        scheduler.run_until_complete()
+        if torch.cuda.is_available():
+            torch.cuda.synchronize()
+
+    scheduler = _build_scheduler(
+        runner,
+        prompts,
+        concurrency=concurrency,
+        total_requests=total_requests,
+        max_tokens=max_tokens,
+        block_size=block_size,
+        max_blocks=max_blocks,
+        seed=seed,
+        profile_name=profile_name,
+        continuous=continuous,
+        vary_lengths=vary_lengths,
+    )
 
     if torch.cuda.is_available():
         torch.cuda.synchronize()
@@ -122,7 +166,7 @@ def _run_scheduler_point(
         throughput_tok_s=throughput(total_tokens, wall),
         peak_vram_mb=vs.peak_mb,
         peak_vram_torch_mb=torch_peak_mb,
-        warmup_runs=0,
+        warmup_runs=warmup_runs,
     )
     return point, metrics
 
@@ -132,7 +176,7 @@ def run(
     seed: int = 0,
     max_tokens: int = MAX_TOKENS,
     concurrency_grid: list[int] | None = None,
-    warmup_runs: int = 0,
+    warmup_runs: int = 3,
     profile_name: str = "greedy",
     results_dir: Path | None = None,
     device: str = "cuda:0",
@@ -144,8 +188,6 @@ def run(
 ) -> BenchResult:
     if concurrency_grid is None:
         concurrency_grid = [1, 2, 4, 8, 16]
-    if warmup_runs:
-        print("[batched] warmup is accepted for CLI symmetry but not used by the scheduler runner.")
 
     model_path = _resolve_model_path(model_name)
     runner = ModelRunner.load_target(model_path, device=device)
@@ -180,7 +222,10 @@ def run(
     )
 
     scheduler_points: list[dict] = []
-    print(f"\n[batched] Concurrency sweep {concurrency_grid} (pool={total_requests}) ...")
+    print(
+        f"\n[batched] Concurrency sweep {concurrency_grid} "
+        f"(pool={total_requests}, warmup={warmup_runs}) ..."
+    )
     for c in concurrency_grid:
         print(f"  concurrency={c} ...", end="", flush=True)
         point, metrics = _run_scheduler_point(
@@ -195,6 +240,7 @@ def run(
             profile_name=profile_name,
             continuous=True,
             vary_lengths=vary_lengths,
+            warmup_runs=warmup_runs,
         )
         result.concurrency_sweep.append(point)
         row = {"concurrency": c, "continuous_tok_s": point.throughput_tok_s, **metrics}
@@ -212,6 +258,7 @@ def run(
                 profile_name=profile_name,
                 continuous=False,
                 vary_lengths=vary_lengths,
+                warmup_runs=warmup_runs,
             )
             row["static_tok_s"] = static_point.throughput_tok_s
             row["continuous_speedup_vs_static"] = (
