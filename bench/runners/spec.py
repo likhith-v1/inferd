@@ -132,7 +132,7 @@ def run(
         "max_tokens": max_tokens,
         "baseline_tok_s": round(base_tps, 2),
         "sweep": sweep,
-        "env": env_stamp(seed, workload_hash(profile)),
+        "env": env_stamp(seed, workload_hash(profile, max_tokens)),
     }
     _write(result, results_dir)
     return result

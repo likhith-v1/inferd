@@ -106,17 +106,56 @@ results = {"concurrency_sweep": [], "notes": [
 ]}
 
 import subprocess as _sp
+import threading
 
-def _vram_mb():
-    try:
-        out = _sp.check_output(
-            ["nvidia-smi", "--id=0", "--query-gpu=memory.used",
-             "--format=csv,noheader,nounits"],
-            stderr=_sp.DEVNULL, timeout=2,
-        )
-        return float(out.strip())
-    except Exception:
-        return 0.0
+
+class _VramSampler:
+    """Poll nvidia-smi during generation (same contract as bench.metrics.VramSampler)."""
+
+    def __init__(self, gpu_index=0, interval_s=0.25):
+        self.gpu_index = gpu_index
+        self.interval_s = interval_s
+        self._peak_mb = 0.0
+        self._stop = threading.Event()
+        self._thread = None
+
+    def _query_mb(self):
+        try:
+            out = _sp.check_output(
+                ["nvidia-smi", f"--id={self.gpu_index}", "--query-gpu=memory.used",
+                 "--format=csv,noheader,nounits"],
+                stderr=_sp.DEVNULL, timeout=2,
+            )
+            return float(out.strip())
+        except Exception:
+            return None
+
+    def _poll(self):
+        while not self._stop.wait(self.interval_s):
+            mb = self._query_mb()
+            if mb is not None and mb > self._peak_mb:
+                self._peak_mb = mb
+
+    def __enter__(self):
+        mb = self._query_mb()
+        if mb is not None:
+            self._peak_mb = mb
+        self._stop.clear()
+        self._thread = threading.Thread(target=self._poll, daemon=True)
+        self._thread.start()
+        return self
+
+    def __exit__(self, *args):
+        self._stop.set()
+        if self._thread:
+            self._thread.join(timeout=5)
+        mb = self._query_mb()
+        if mb is not None and mb > self._peak_mb:
+            self._peak_mb = mb
+
+    @property
+    def peak_mb(self):
+        return self._peak_mb
 
 # Warmup
 print("[vllm-subprocess] Warmup ...", flush=True)
@@ -125,12 +164,13 @@ llm.generate(prompts[:1], sp)
 for c in concurrency_grid:
     batch = [prompts[i % len(prompts)] for i in range(c)]
     t0 = time.perf_counter()
-    outputs = llm.generate(batch, sp)
+    with _VramSampler() as vs:
+        outputs = llm.generate(batch, sp)
     t1 = time.perf_counter()
     wall = t1 - t0
     total_tokens = sum(len(o.outputs[0].token_ids) for o in outputs)
     tps = total_tokens / wall if wall > 0 else 0.0
-    peak_mb = _vram_mb()
+    peak_mb = vs.peak_mb
     results["concurrency_sweep"].append({
         "concurrency": c,
         "total_time_s": wall,
@@ -167,7 +207,7 @@ def run(
         concurrency_grid = [1, 2, 4, 8, 16]
 
     profile = CANONICAL if profile_name == "canonical" else GREEDY
-    wh = workload_hash(profile)
+    wh = workload_hash(profile, max_tokens)
     stamp = env_stamp(seed, wh)
 
     deferred_result = BenchResult(

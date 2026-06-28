@@ -21,7 +21,7 @@ import inferd.env  # noqa: F401  (CUDA preload before torch)
 import torch  # noqa: E402
 
 from bench.metrics import BenchResult, ConcurrencySweepPoint, VramSampler, env_stamp, throughput  # noqa: E402
-from bench.workload import CANONICAL, GREEDY, MAX_TOKENS, PROMPTS, workload_hash  # noqa: E402
+from bench.workload import CANONICAL, GREEDY, MAX_TOKENS, PROMPTS, request_token_budgets, workload_hash  # noqa: E402
 from core.model_runner import ModelRunner  # noqa: E402
 from core.scheduler import (
     ContinuousBatchScheduler,
@@ -92,10 +92,9 @@ def _run_scheduler_point(
     # the continuous and static runs so the comparison is apples-to-apples. With
     # variance, static cohorts stall on stragglers while continuous backfills.
     rng = random.Random(seed)
-    budgets = [
-        rng.randint(max(8, max_tokens // 4), max_tokens) if vary_lengths else max_tokens
-        for _ in range(total_requests)
-    ]
+    budgets = request_token_budgets(
+        rng, total_requests, max_tokens, vary_lengths=vary_lengths
+    )
     for i, prompt in enumerate(pool):
         ids = runner.tokenizer(prompt, return_tensors="pt").input_ids[0].tolist()
         scheduler.submit(ids, max_tokens=budgets[i], prompt_text=prompt, request_id=i + 1)
@@ -166,7 +165,7 @@ def run(
         model=str(model_path),
         profile=profile_name,
         max_tokens=max_tokens,
-        env=env_stamp(seed, workload_hash(profile)),
+        env=env_stamp(seed, workload_hash(profile, max_tokens)),
         notes=[
             "Continuous batching: FCFS admission, one BATCHED decode forward per iteration over "
             "the running set (per-seq caches stacked, full-attn KV left-padded, linear states cat'd).",
