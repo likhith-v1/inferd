@@ -35,7 +35,7 @@ def _selfcheck() -> bool:
     Returns True on pass, prints failures and returns False on any assertion.
     """
     from bench.metrics import itl, throughput, ttft
-    from bench.workload import CANONICAL, GREEDY, workload_hash
+    from bench.workload import CANONICAL, GREEDY, MAX_TOKENS, request_token_budgets, workload_hash
 
     failures: list[str] = []
 
@@ -70,13 +70,26 @@ def _selfcheck() -> bool:
     tps = throughput(256, 8.0)
     _check("tps", tps, 32.0)
 
-    # workload_hash is deterministic
-    h1 = workload_hash(CANONICAL)
-    h2 = workload_hash(CANONICAL)
+    # workload_hash is deterministic and reflects max_tokens
+    h1 = workload_hash(CANONICAL, MAX_TOKENS)
+    h2 = workload_hash(CANONICAL, MAX_TOKENS)
     if h1 != h2:
         failures.append("  FAIL workload_hash: not deterministic")
-    if workload_hash(CANONICAL) == workload_hash(GREEDY):
+    if workload_hash(CANONICAL, MAX_TOKENS) == workload_hash(GREEDY, MAX_TOKENS):
         failures.append("  FAIL workload_hash: CANONICAL == GREEDY (should differ)")
+    if workload_hash(CANONICAL, 256) == workload_hash(CANONICAL, 128):
+        failures.append("  FAIL workload_hash: unchanged when max_tokens differs")
+
+    # request_token_budgets never raises on small max_tokens
+    import random
+
+    rng = random.Random(0)
+    small = request_token_budgets(rng, 4, 7, vary_lengths=True)
+    if not all(1 <= b <= 7 for b in small):
+        failures.append(f"  FAIL request_token_budgets: invalid budgets for max_tokens=7: {small!r}")
+    tiny = request_token_budgets(rng, 3, 1, vary_lengths=True)
+    if tiny != [1, 1, 1]:
+        failures.append(f"  FAIL request_token_budgets: expected [1,1,1] for max_tokens=1: {tiny!r}")
 
     if failures:
         print("[selfcheck] FAIL")

@@ -267,7 +267,7 @@ def run(
     weights_dir = WEIGHTS_ROOT / model_name
     lm, lm_head, tokenizer = load(weights_dir, device=device)
 
-    wh = workload_hash(profile)
+    wh = workload_hash(profile, max_tokens)
     stamp = env_stamp(seed, wh)
     torch.manual_seed(seed)
 

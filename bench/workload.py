@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import random
 from dataclasses import dataclass
 
 
@@ -102,10 +103,36 @@ PROMPTS: list[str] = [
 ]
 
 
-def workload_hash(profile: SamplingProfile = CANONICAL) -> str:
-    """SHA-256 of (prompts + profile + MAX_TOKENS) for provenance stamping."""
+def request_token_budgets(
+    rng: random.Random,
+    total_requests: int,
+    max_tokens: int,
+    *,
+    vary_lengths: bool,
+) -> list[int]:
+    """Seeded per-request max_tokens for batched variance experiments.
+
+    When ``max_tokens`` is small, the lower bound is clamped so ``randint`` never
+    receives an empty range (e.g. ``max_tokens=7`` with a hard floor of 8).
+    """
+    if not vary_lengths or max_tokens <= 1:
+        return [max_tokens] * total_requests
+    lo = max(1, max_tokens // 4)
+    if max_tokens >= 8:
+        lo = max(lo, 8)
+    lo = min(lo, max_tokens)
+    if lo >= max_tokens:
+        return [max_tokens] * total_requests
+    return [rng.randint(lo, max_tokens) for _ in range(total_requests)]
+
+
+def workload_hash(
+    profile: SamplingProfile = CANONICAL,
+    max_tokens: int = MAX_TOKENS,
+) -> str:
+    """SHA-256 of (prompts + profile + max_tokens) for provenance stamping."""
     payload = json.dumps(
-        {"prompts": PROMPTS, "profile": profile.as_dict(), "max_tokens": MAX_TOKENS},
+        {"prompts": PROMPTS, "profile": profile.as_dict(), "max_tokens": max_tokens},
         sort_keys=True,
     ).encode()
     return hashlib.sha256(payload).hexdigest()[:16]
