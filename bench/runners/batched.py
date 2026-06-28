@@ -140,8 +140,7 @@ def run(
     if total_requests is None:
         total_requests = max(concurrency_grid)
     if max_blocks is None:
-        # Budget covers the widest batch (only `concurrency` requests run at once).
-        max_blocks = max(concurrency_grid) * ((MAX_TOKENS + max_tokens + block_size - 1) // block_size)
+        max_blocks = max(concurrency_grid) * ((max_tokens + block_size - 1) // block_size)
 
     result = BenchResult(
         engine="batched",

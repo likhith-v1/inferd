@@ -23,21 +23,16 @@ from __future__ import annotations
 import json
 import os
 import subprocess
-import sys
 import tempfile
 import time
 from pathlib import Path
 
 from bench.metrics import BenchResult, ConcurrencySweepPoint, env_stamp
-from bench.workload import CANONICAL, GREEDY, MAX_TOKENS, PROMPTS, SamplingProfile, workload_hash
+from bench.workload import CANONICAL, GREEDY, MAX_TOKENS, PROMPTS, workload_hash
 
 WEIGHTS_ROOT = Path(__file__).parent.parent.parent / "weights"
 VLLM_VENV = Path(__file__).parent.parent / ".venv-vllm"
 
-
-# ---------------------------------------------------------------------------
-# Isolated venv management
-# ---------------------------------------------------------------------------
 
 def _ensure_vllm_venv() -> Path:
     """Create bench/.venv-vllm and install vllm if not already done."""
@@ -70,10 +65,6 @@ def _ensure_vllm_venv() -> Path:
     print("[vllm] vllm installed successfully.")
     return python_bin
 
-
-# ---------------------------------------------------------------------------
-# Self-contained subprocess runner script
-# ---------------------------------------------------------------------------
 
 _RUNNER_SCRIPT = '''
 """vLLM ceiling runner — executed as a subprocess in the isolated venv."""
@@ -156,10 +147,6 @@ with open(result_path, "w") as fh:
 print(f"[vllm-subprocess] Wrote {result_path}", flush=True)
 '''
 
-
-# ---------------------------------------------------------------------------
-# Public run() entry point
-# ---------------------------------------------------------------------------
 
 def run(
     model_name: str = "Qwen3.5-9B",

@@ -2,7 +2,7 @@ import unittest
 
 import torch
 
-from core.paged_attn import dense_attention, paged_attention, sdpa_reference
+from core.paged_attn import paged_attention, sdpa_reference
 from core.paged_cache import PagedHybridCache, PagedKVCache
 
 

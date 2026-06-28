@@ -98,6 +98,42 @@ class BatchedCacheTest(unittest.TestCase):
             self.assertEqual(rec.key_cache[0].shape, (1, H, L + 1, D))
             self.assertTrue(torch.equal(rec.key_cache[0][0, :, -1, :], torch.full((H, D), -1.0)))
 
+    def test_linear_only_stack_split(self):
+        """No full-attention layers: split must not use negative KV slice indices."""
+
+        class LinearOnlyCache:
+            def __init__(self, fill: float) -> None:
+                self.layer_types = ["linear", "linear"]
+                self.transformer_layers = []
+                self.key_cache = [None, None]
+                self.value_cache = [None, None]
+                self.conv_states = [
+                    torch.full((1, 4, 3), fill),
+                    torch.full((1, 4, 3), fill + 1.0),
+                ]
+                self.recurrent_states = [
+                    torch.full((1, 2, 3, 3), fill + 2.0),
+                    torch.full((1, 2, 3, 3), fill + 3.0),
+                ]
+
+            def get_seq_length(self, layer_idx=0):
+                return 4
+
+        caches = [LinearOnlyCache(10.0), LinearOnlyCache(20.0)]
+        originals = [copy.deepcopy(c) for c in caches]
+        batched, _ = stack_caches(caches)
+        self.assertTrue(all(k is None for k in batched.key_cache))
+
+        recovered = split_caches(batched, [5, 5])
+        self.assertEqual(len(recovered), 2)
+        for orig, rec in zip(originals, recovered):
+            for layer in range(2):
+                self.assertTrue(torch.equal(orig.conv_states[layer], rec.conv_states[layer]))
+                self.assertTrue(
+                    torch.equal(orig.recurrent_states[layer], rec.recurrent_states[layer])
+                )
+            self.assertTrue(all(k is None for k in rec.key_cache))
+
 
 if __name__ == "__main__":
     unittest.main()

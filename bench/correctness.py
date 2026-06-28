@@ -31,12 +31,8 @@ import inferd.env  # noqa: F401
 import torch  # noqa: E402
 
 from bench.workload import CANONICAL, PROMPTS  # noqa: E402
-from core.spec_decode import nucleus_probs, sample_from, speculative_generate  # noqa: E402
+from core.spec_decode import nucleus_probs, speculative_generate  # noqa: E402
 
-
-# ---------------------------------------------------------------------------
-# Statistics (pure; covered by selfcheck)
-# ---------------------------------------------------------------------------
 
 def total_variation(p: dict[int, float], q: dict[int, float]) -> float:
     """TV distance between two discrete distributions given as {token: prob}."""
@@ -53,10 +49,6 @@ def _hist(samples: list[int]) -> dict[int, float]:
 def chi_square_pvalue(obs_a: list[int], obs_b: list[int]) -> float:
     """
     Two-sample χ² homogeneity test p-value over the pooled token support.
-
-    Returns 1.0 if degenerate (single category). Uses scipy if available, else a
-    survival-function approximation via torch's chi2 is not available, so we fall
-    back to a normal approximation of the χ² statistic.
     """
     cats = sorted(set(obs_a) | set(obs_b))
     if len(cats) <= 1:
@@ -86,10 +78,6 @@ def chi_square_pvalue(obs_a: list[int], obs_b: list[int]) -> float:
         return 0.5 * math.erfc(z / math.sqrt(2))
 
 
-# ---------------------------------------------------------------------------
-# Sampling collectors
-# ---------------------------------------------------------------------------
-
 @torch.no_grad()
 def _direct_next_tokens(target, prompt_ids, n, temperature, top_p) -> list[int]:
     """Sample n next-tokens directly from the target's nucleus distribution."""
@@ -112,8 +100,6 @@ def _spec_first_tokens(target, draft, prompt_ids, n, gamma, temperature, top_p) 
         out.append(r.token_ids[0])
     return out
 
-
-# --- multi-token sequence test (exercises verify ps[k>0] AND replay) ---------
 
 @torch.no_grad()
 def _direct_continuations(target, prompt_ids, n, length, temperature, top_p, chunk=64) -> list[list[int]]:
@@ -162,10 +148,6 @@ def _spec_continuations(target, draft, prompt_ids, n, length, gamma, temperature
 def _pos_tokens(seqs: list[list[int]], t: int) -> list[int]:
     return [s[t] for s in seqs if len(s) > t]
 
-
-# ---------------------------------------------------------------------------
-# The gate
-# ---------------------------------------------------------------------------
 
 def run(
     target_path: str,
@@ -308,7 +290,6 @@ def main() -> int:
     parser.add_argument("--gamma", type=int, default=4)
     parser.add_argument("--n-prompts", type=int, default=4)
     parser.add_argument("--bootstrap", type=int, default=200)
-    parser.add_argument("--test", choices=["tv"], default="tv")
     parser.add_argument("--mode", choices=["first", "seq"], default="seq",
                         help="'first': first-token only; 'seq': multi-token per-position "
                              "(exercises verify ps[k>0] + replay).")
