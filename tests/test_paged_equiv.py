@@ -1,3 +1,5 @@
+"""Paged-attention equivalence tests (paged gather vs SDPA reference)."""
+
 import unittest
 
 import torch

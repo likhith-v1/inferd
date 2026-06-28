@@ -1,4 +1,4 @@
-# Environment — phase 01 (validated 2026-06-26)
+# Environment — validated 2026-06-26
 
 Reproducible local CUDA stack for **inferd** on WSL2 Ubuntu, RTX 5090 (Blackwell sm_120). Validated by `scripts/smoke_load.py`.
 

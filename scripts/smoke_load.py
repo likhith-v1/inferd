@@ -1,5 +1,5 @@
 """
-Smoke test for phase-01 validation.
+Environment smoke test — validates GPU stack and model loading.
 
 Loads Qwen3.5-9B as AutoModelForMultimodalLM, extracts the text backbone,
 strips the vision tower, runs one forward pass, and prints diagnostics.
@@ -194,7 +194,7 @@ def check_fla() -> bool:
 def main():
     offline = is_offline_mode()
     print("=" * 60)
-    print(f"inferd phase-01 smoke test  (offline={offline})")
+    print(f"inferd smoke test  (offline={offline})")
     print("=" * 60)
 
     cap = check_capability()

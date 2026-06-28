@@ -1,3 +1,5 @@
+"""Unit tests for ``core.scheduler.ContinuousBatchScheduler`` (fake backend)."""
+
 import unittest
 
 import torch
