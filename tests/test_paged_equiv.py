@@ -2,8 +2,40 @@ import unittest
 
 import torch
 
+from bench.paged_equiv import logits_equivalent
+from bench.runners.paged import _microbench_hash
 from core.paged_attn import paged_attention, sdpa_reference
 from core.paged_cache import PagedHybridCache, PagedKVCache
+
+
+class LogitsEquivalentTest(unittest.TestCase):
+    def test_requires_both_absolute_and_relative_bounds(self):
+        # OR would pass: large abs error on a big logit, tiny relative error.
+        ref = torch.tensor([10_000.0])
+        bad = torch.tensor([10_000.1])
+        ok, max_abs, max_rel = logits_equivalent(ref, bad, atol=5e-3, rtol=5e-3)
+        self.assertFalse(ok)
+        self.assertGreater(max_abs, 5e-3)
+        self.assertLess(max_rel, 5e-3)
+
+    def test_passes_when_both_bounds_hold(self):
+        ref = torch.tensor([1.0, -2.0, 0.001])
+        close = torch.tensor([1.0 + 1e-6, -2.0 - 1e-6, 0.001 + 1e-6])
+        ok, _, _ = logits_equivalent(ref, close, atol=5e-3, rtol=5e-3)
+        self.assertTrue(ok)
+
+
+class MicrobenchHashTest(unittest.TestCase):
+    def test_changes_with_max_tokens(self):
+        shape = {"layers": 36, "kv_heads": 8, "head_dim": 128, "dtype": "bfloat16", "block_size": 16}
+        grid = [1, 2, 4]
+        h256 = _microbench_hash(
+            seed=0, max_tokens=256, block_size=16, concurrency_grid=grid, model_shape=shape,
+        )
+        h128 = _microbench_hash(
+            seed=0, max_tokens=128, block_size=16, concurrency_grid=grid, model_shape=shape,
+        )
+        self.assertNotEqual(h256, h128)
 
 
 class PagedCacheEquivalenceTest(unittest.TestCase):
