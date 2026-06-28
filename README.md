@@ -49,28 +49,25 @@ Weights, adapters, merged checkpoints, and datasets are gitignored and live unde
 
 ## Architecture
 
+```mermaid
+flowchart TB
+    dash["Dashboard<br/>React + Vite · planned<br/>tokens/sec · TTFT · α · VRAM"]
+    serve["Serving<br/>FastAPI + SSE · planned<br/>queue · scheduler · streaming"]
+    core["Inference core · live<br/>spec decode · paged KV · batching<br/>model runner (target + draft, bf16)"]
+    ft["Fine-tuning · live<br/>Unsloth QLoRA · golden eval · export · draft KD"]
+
+    dash -->|SSE / WebSocket| serve
+    serve -->|in-process| core
+    ft -->|adapters / merged weights| core
 ```
-┌─────────────────────────────────────────────────────────────┐
-│  Dashboard (React + Vite)                         [planned]│
-│  tokens/sec · TTFT · inter-token latency · draft accept rate │
-└───────────────────────────┬─────────────────────────────────┘
-                            │ SSE / WebSocket
-┌───────────────────────────┴─────────────────────────────────┐
-│  Serving layer (FastAPI, async)                   [planned]│
-│  request queue · iteration-level scheduler · token streaming │
-└───────────────────────────┬─────────────────────────────────┘
-                            │ in-process
-┌───────────────────────────┴─────────────────────────────────┐
-│  Inference core (Python + Triton)                    [live] │
-│  spec decoding · paged KV-cache · continuous batching        │
-│  model runner (target + draft, bf16)                          │
-└───────────────────────────┬─────────────────────────────────┘
-                            │ loads adapters / merged weights
-┌───────────────────────────┴─────────────────────────────────┐
-│  Fine-tuning stage (Unsloth; offline)                [live] │
-│  QLoRA SFT · golden-set eval · adapter export · draft KD     │
-└──────────────────────────────────────────────────────────────┘
-```
+
+| Layer | Package | Status |
+|-------|---------|--------|
+| Dashboard | `dashboard/` | Planned |
+| Serving | `serve/` | Planned |
+| Inference core | `core/` | Live |
+| Fine-tuning | `finetune/` | Live |
+| Benchmarks | `bench/` | Live (headless; no HTTP required) |
 
 The core is importable and headless-benchmarkable — measurement never depends on the HTTP stack.
 
