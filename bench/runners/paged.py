@@ -9,6 +9,7 @@ naive contiguous preallocation comparison.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import time
 from pathlib import Path
@@ -16,9 +17,32 @@ from pathlib import Path
 import torch
 
 from bench.metrics import env_stamp
-from bench.workload import MAX_TOKENS, workload_hash
+from bench.workload import MAX_TOKENS
 from core.paged_attn import paged_attention
 from core.paged_cache import PagedKVCache
+
+
+def _microbench_hash(
+    *,
+    seed: int,
+    max_tokens: int,
+    block_size: int,
+    concurrency_grid: list[int],
+    model_shape: dict,
+) -> str:
+    """Hash the synthetic cache sweep params (not the frozen CANONICAL workload)."""
+    payload = json.dumps(
+        {
+            "kind": "paged_cache_microbench",
+            "seed": seed,
+            "max_tokens": max_tokens,
+            "block_size": block_size,
+            "concurrency_grid": concurrency_grid,
+            "model_shape": model_shape,
+        },
+        sort_keys=True,
+    ).encode()
+    return hashlib.sha256(payload).hexdigest()[:16]
 
 
 def _sequence_lengths(concurrency: int, max_tokens: int) -> list[int]:
@@ -163,6 +187,13 @@ def run(
     dtype = torch.bfloat16
     device = "cuda:0" if torch.cuda.is_available() else "cpu"
 
+    model_shape = {
+        "layers": layers,
+        "kv_heads": kv_heads,
+        "head_dim": head_dim,
+        "dtype": str(dtype).replace("torch.", ""),
+        "block_size": block_size,
+    }
     points = [
         _run_point(
             c,
@@ -179,20 +210,24 @@ def run(
     result = {
         "engine": "paged",
         "role": "cache_microbench",
-        "model_shape": {
-            "layers": layers,
-            "kv_heads": kv_heads,
-            "head_dim": head_dim,
-            "dtype": str(dtype).replace("torch.", ""),
-            "block_size": block_size,
-        },
+        "model_shape": model_shape,
         "max_tokens": max_tokens,
+        "concurrency_grid": concurrency_grid,
         "points": points,
         "notes": [
             "Cache-level accounting only; full Qwen model_runner paged integration is not claimed.",
             "Qwen3.5 hybrid linear-attention states are fixed recurrent state, not paged KV.",
         ],
-        "env": env_stamp(seed, workload_hash()),
+        "env": env_stamp(
+            seed,
+            _microbench_hash(
+                seed=seed,
+                max_tokens=max_tokens,
+                block_size=block_size,
+                concurrency_grid=concurrency_grid,
+                model_shape=model_shape,
+            ),
+        ),
     }
     _write(result, results_dir)
     return result

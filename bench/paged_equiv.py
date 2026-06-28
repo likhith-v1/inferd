@@ -20,6 +20,22 @@ from bench.workload import PROMPTS
 from core.paged_cache import PagedHybridCache
 
 
+def logits_equivalent(
+    ref_logits: torch.Tensor,
+    other_logits: torch.Tensor,
+    *,
+    atol: float,
+    rtol: float,
+) -> tuple[bool, float, float]:
+    """Return (ok, max_abs, max_rel). Both absolute and relative bounds must hold."""
+    diff = (ref_logits - other_logits).abs()
+    max_abs = float(diff.max().item())
+    denom = ref_logits.abs().clamp_min(1e-6)
+    max_rel = float((diff / denom).max().item())
+    ok = max_abs <= atol and max_rel <= rtol
+    return ok, max_abs, max_rel
+
+
 @torch.no_grad()
 def run(
     target_path: str,
@@ -44,11 +60,7 @@ def run(
 
         logits_ref, _ = target.forward(next_id, kv)
         logits_rt, _ = target.forward(next_id, roundtrip_kv)
-        diff = (logits_ref - logits_rt).abs()
-        max_abs = float(diff.max().item())
-        denom = logits_ref.abs().clamp_min(1e-6)
-        max_rel = float((diff / denom).max().item())
-        ok = max_abs <= atol or max_rel <= rtol
+        ok, max_abs, max_rel = logits_equivalent(logits_ref, logits_rt, atol=atol, rtol=rtol)
         all_pass &= ok
         print(
             f"[paged_equiv] prompt[{idx}] max_abs={max_abs:.6g} "
@@ -87,32 +99,36 @@ def run_compute(
     # Force eager mask prep so causal prefill is correct; paged routing is done by
     # patching the eager global (install), toggled per run below.
     set_impl(target, "eager")
+    uninstall()  # clear any stale patch from a prior failed run
     all_pass = True
-    for idx, prompt in enumerate(PROMPTS[:n_prompts]):
-        prompt_ids = target.tokenizer(prompt, return_tensors="pt").input_ids.to(target.device)
+    try:
+        for idx, prompt in enumerate(PROMPTS[:n_prompts]):
+            prompt_ids = target.tokenizer(prompt, return_tensors="pt").input_ids.to(target.device)
 
-        # Reference decode step with the stock eager attention path.
+            # Reference decode step with the stock eager attention path.
+            uninstall()
+            logits, kv = target.forward(prompt_ids, None)
+            next_id = logits[:, -1, :].argmax(dim=-1, keepdim=True)
+            ref_logits, _ = target.forward(next_id, kv)
+
+            # Same decode step, decode attention routed through the paged path.
+            install()
+            try:
+                logits2, kv2 = target.forward(prompt_ids, None)
+                paged_logits, _ = target.forward(next_id, kv2)
+            finally:
+                uninstall()
+
+            ok, max_abs, max_rel = logits_equivalent(
+                ref_logits, paged_logits, atol=atol, rtol=rtol
+            )
+            all_pass &= ok
+            print(
+                f"[paged_equiv:compute] prompt[{idx}] max_abs={max_abs:.6g} "
+                f"max_rel={max_rel:.6g} -> {'PASS' if ok else 'FAIL'}"
+            )
+    finally:
         uninstall()
-        logits, kv = target.forward(prompt_ids, None)
-        next_id = logits[:, -1, :].argmax(dim=-1, keepdim=True)
-        ref_logits, _ = target.forward(next_id, kv)
-
-        # Same decode step, decode attention routed through the paged path.
-        install()
-        logits2, kv2 = target.forward(prompt_ids, None)
-        paged_logits, _ = target.forward(next_id, kv2)
-        uninstall()
-
-        diff = (ref_logits - paged_logits).abs()
-        max_abs = float(diff.max().item())
-        denom = ref_logits.abs().clamp_min(1e-6)
-        max_rel = float((diff / denom).max().item())
-        ok = max_abs <= atol or max_rel <= rtol
-        all_pass &= ok
-        print(
-            f"[paged_equiv:compute] prompt[{idx}] max_abs={max_abs:.6g} "
-            f"max_rel={max_rel:.6g} -> {'PASS' if ok else 'FAIL'}"
-        )
 
     print(
         f"\n[paged_equiv:compute] {'PASS' if all_pass else 'FAIL'} "
