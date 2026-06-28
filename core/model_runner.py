@@ -106,7 +106,8 @@ class ModelRunner:
 
     # -- the single forward pass ------------------------------------------
 
-    def forward(self, tokens: torch.Tensor, kv=None, attention_mask=None):
+    def forward(self, tokens: torch.Tensor, kv=None, attention_mask=None,
+                position_ids=None, cache_position=None):
         """
         Run one forward pass over `tokens` (shape [batch, seq]).
 
@@ -122,15 +123,28 @@ class ModelRunner:
         LEFT-PADDED batches so the model does not attend to pad tokens (both the
         attention KV and the linear-attention recurrent/conv state). Single-stream
         callers (spec-decode, batch=1) leave it None.
+
+        `position_ids` (optional, shape [batch, seq]) must be supplied alongside a
+        LEFT-PADDED batched cache (continuous batching, 06): rows have different
+        true lengths, so the default `cache_length + arange` positions are wrong
+        for the shorter rows and would corrupt RoPE. Pass each row's true position.
+        `cache_position` is forwarded as-is when given.
         """
-        if tokens.device.type != self.device.split(":")[0]:
+        dev = self.device.split(":")[0]
+        if tokens.device.type != dev:
             tokens = tokens.to(self.device)
-        if attention_mask is not None and attention_mask.device.type != self.device.split(":")[0]:
+        if attention_mask is not None and attention_mask.device.type != dev:
             attention_mask = attention_mask.to(self.device)
+        if position_ids is not None and position_ids.device.type != dev:
+            position_ids = position_ids.to(self.device)
+        if cache_position is not None and cache_position.device.type != dev:
+            cache_position = cache_position.to(self.device)
         with torch.no_grad():
             out = self.lm(
                 input_ids=tokens,
                 attention_mask=attention_mask,
+                position_ids=position_ids,
+                cache_position=cache_position,
                 past_key_values=kv,
                 use_cache=True,
             )
