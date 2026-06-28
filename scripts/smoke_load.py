@@ -18,26 +18,15 @@ _ROOT = Path(__file__).resolve().parent.parent
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
-import inferd.env  # noqa: F401 — preload libnvJitLink before GPU imports
+import inferd.env  # noqa: F401
 
 import torch
 from transformers import AutoModelForMultimodalLM, AutoProcessor, AutoTokenizer
 
+from bench.model_loader import _strip_vision
+
 WEIGHTS_DIR = Path(__file__).parent.parent / "weights" / "Qwen3.5-9B"
 PROMPT = "The capital of France is"
-_VISION_ATTRS = ("visual", "vision_model", "vision_tower", "image_tower", "vpm", "vision_encoder")
-
-
-def _strip_vision_modules(container) -> list[str]:
-    """Delete known vision-tower attributes from a model container."""
-    stripped = []
-    for attr in _VISION_ATTRS:
-        if hasattr(container, attr):
-            delattr(container, attr)
-            stripped.append(attr)
-    if stripped:
-        torch.cuda.empty_cache()
-    return stripped
 
 
 def is_offline_mode() -> bool:
@@ -87,7 +76,7 @@ def load_text_backbone(weights_dir: Path):
 
     # Qwen3_5ForConditionalGeneration nests text at model.model.language_model
     if hasattr(model, "model") and hasattr(model.model, "language_model"):
-        stripped = _strip_vision_modules(model) + _strip_vision_modules(model.model)
+        stripped = _strip_vision(model) + _strip_vision(model.model)
         print(
             "Extracting model.model.language_model and stripping vision tower ..."
             + (f" (removed: {', '.join(stripped)})" if stripped else "")
@@ -97,7 +86,7 @@ def load_text_backbone(weights_dir: Path):
         del model
         torch.cuda.empty_cache()
     elif hasattr(model, "language_model"):
-        stripped = _strip_vision_modules(model)
+        stripped = _strip_vision(model)
         print(
             "Extracting language_model backbone and stripping vision tower ..."
             + (f" (removed: {', '.join(stripped)})" if stripped else "")
@@ -118,13 +107,6 @@ def load_text_backbone(weights_dir: Path):
 
 
 def run_forward_pass(lm, tokenizer, lm_head=None):
-    """
-    Run one forward pass and validate structural properties of the output.
-
-    Gates on: finite logits, expected device/dtype, vocab-size shape.
-    Does NOT gate on the decoded token string — that can change with model
-    revision or sampling and is not an environment correctness check.
-    """
     print("\nRunning single forward pass ...")
     inputs = tokenizer(PROMPT, return_tensors="pt").to("cuda:0")
     with torch.no_grad():
@@ -140,7 +122,6 @@ def run_forward_pass(lm, tokenizer, lm_head=None):
     print(f"Next token:  {next_token!r}  (id={next_token_id})")
     print(f"Logits shape:{logits.shape}")
 
-    # Structural checks — these validate environment correctness, not model output.
     assert logits.device.type == "cuda", f"logits on wrong device: {logits.device}"
     assert logits.dtype == torch.bfloat16, f"wrong dtype: {logits.dtype}"
     assert torch.isfinite(logits).all(), "logits contain NaN or Inf"
@@ -242,7 +223,7 @@ def main():
     forward_ok = False
     try:
         _shape, _token = run_forward_pass(lm, tokenizer, lm_head)
-        forward_ok = True  # structural checks inside run_forward_pass; no semantic gate
+        forward_ok = True
     except Exception as exc:
         print(f"Forward pass error: {exc}")
 

@@ -37,6 +37,7 @@ from bench.workload import (
     SamplingProfile,
     workload_hash,
 )
+from core.spec_decode import nucleus_probs
 
 WEIGHTS_ROOT = Path(__file__).parent.parent.parent / "weights"
 
@@ -52,15 +53,6 @@ def _single_stream_run(
     seed: int,
     device: str = "cuda:0",
 ) -> SingleStreamResult:
-    """
-    Run one prompt in single-stream mode.
-
-    Uses TextIteratorStreamer to capture first-token time.
-    NOTE: streamer first-yield can lag the true first token slightly
-    (UTF-8 / word-boundary buffering). Noted; acceptable approximation.
-
-    TTFT and ITL are only valid at concurrency=1.
-    """
     torch.manual_seed(seed)
 
     def _encode(text: str):
@@ -87,11 +79,6 @@ def _single_stream_run(
     start_time = time.perf_counter()
 
     def _generate():
-        # We need to use the full model forward in a way that supports
-        # .generate(). Since lm is the backbone (not the CausalLM wrapper),
-        # we reconstruct logits manually and run a simple greedy/sampling
-        # decode loop rather than calling .generate() on the stripped backbone.
-        # This keeps the runner framework-agnostic for the phase-04 swap.
         nonlocal first_token_time, generated_tokens
 
         torch.manual_seed(seed)
@@ -106,21 +93,10 @@ def _single_stream_run(
             next_logits = logits[:, -1, :]
 
             if profile.temperature > 0:
-                next_logits = next_logits / profile.temperature
-                probs = torch.softmax(next_logits, dim=-1)
-                # top-p nucleus sampling
-                sorted_probs, sorted_idx = torch.sort(probs, descending=True)
-                cumulative = torch.cumsum(sorted_probs, dim=-1)
-                mask = cumulative - sorted_probs > profile.top_p
-                sorted_probs[mask] = 0.0
-                sorted_probs /= sorted_probs.sum(dim=-1, keepdim=True)
-                # .gather maps sampled column position back to vocab token id.
-                # sorted_probs/sorted_idx shape: [1, vocab_size]
-                # torch.multinomial returns [1, 1]; gather returns [1, 1].
-                sampled_col = torch.multinomial(sorted_probs, num_samples=1)
-                next_id = sorted_idx.gather(-1, sampled_col)  # [1, 1]
+                probs = nucleus_probs(next_logits, profile.temperature, profile.top_p)
+                next_id = torch.multinomial(probs, num_samples=1)
             else:
-                next_id = next_logits.argmax(dim=-1, keepdim=True)  # [1, 1]
+                next_id = next_logits.argmax(dim=-1, keepdim=True)
 
             now = time.perf_counter()
             if step == 0:
@@ -229,17 +205,8 @@ def _concurrency_run(
 
             next_logits = logits[:, -1, :]
             if profile.temperature > 0:
-                next_logits = next_logits / profile.temperature
-                probs = torch.softmax(next_logits, dim=-1)
-                sorted_probs, sorted_idx = torch.sort(probs, descending=True)
-                cumulative = torch.cumsum(sorted_probs, dim=-1)
-                mask = cumulative - sorted_probs > profile.top_p
-                sorted_probs[mask] = 0.0
-                sorted_probs /= sorted_probs.sum(dim=-1, keepdim=True)
-                next_ids = sorted_idx[
-                    torch.arange(concurrency, device=device),
-                    torch.multinomial(sorted_probs, num_samples=1).squeeze(-1),
-                ]
+                probs = nucleus_probs(next_logits, profile.temperature, profile.top_p)
+                next_ids = torch.multinomial(probs, num_samples=1).squeeze(-1)
             else:
                 next_ids = next_logits.argmax(dim=-1)
 

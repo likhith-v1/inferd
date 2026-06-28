@@ -40,14 +40,13 @@ def run(
         next_id = logits[:, -1, :].argmax(dim=-1, keepdim=True)
 
         paged = PagedHybridCache.from_qwen_cache(kv, block_size=block_size)
-        contig_kv = paged.to_qwen_cache_like(kv)
-        paged_roundtrip_kv = paged.to_qwen_cache_like(kv)
+        roundtrip_kv = paged.to_qwen_cache_like(kv)
 
-        logits_contig, _ = target.forward(next_id, contig_kv)
-        logits_paged, _ = target.forward(next_id, paged_roundtrip_kv)
-        diff = (logits_contig - logits_paged).abs()
+        logits_ref, _ = target.forward(next_id, kv)
+        logits_rt, _ = target.forward(next_id, roundtrip_kv)
+        diff = (logits_ref - logits_rt).abs()
         max_abs = float(diff.max().item())
-        denom = logits_contig.abs().clamp_min(1e-6)
+        denom = logits_ref.abs().clamp_min(1e-6)
         max_rel = float((diff / denom).max().item())
         ok = max_abs <= atol or max_rel <= rtol
         all_pass &= ok

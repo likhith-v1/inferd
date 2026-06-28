@@ -1,17 +1,13 @@
 """
-core.scheduler -- iteration-level continuous batching (phase 06).
+Iteration-level continuous batching: FCFS admission, batched decode, block budgeting.
 
-This scheduler owns request state, FCFS admission, free-block budgeting, prompt
-prefill, per-iteration decode, eviction, and live metrics. Phase 05 does not yet
-provide a persistent paged runtime Cache, so the budget here is enforced as the
-public scheduler contract while the default backend still delegates actual model
-state to ModelRunner's HF-backed opaque cache.
+Block budget is enforced here; the default backend delegates KV to ModelRunner's HF cache.
 """
 
 from __future__ import annotations
 
 from collections import OrderedDict, deque
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from enum import Enum
 from math import ceil
 from typing import Protocol
@@ -42,9 +38,6 @@ class SchedulerConfig:
     temperature: float = 0.0
     top_p: float = 1.0
     seed: int = 0
-    # Iteration-level (continuous) admission backfills freed slots every step.
-    # Set False for the naive STATIC-batching baseline: a cohort runs to full
-    # drain before the next one is admitted (stragglers hold the batch).
     continuous: bool = True
 
     def __post_init__(self) -> None:
@@ -103,19 +96,7 @@ class SchedulerMetrics:
     max_blocks_used: int
 
     def as_dict(self) -> dict:
-        return {
-            "waiting_sequences": self.waiting_sequences,
-            "active_sequences": self.active_sequences,
-            "completed_sequences": self.completed_sequences,
-            "failed_sequences": self.failed_sequences,
-            "admitted_sequences": self.admitted_sequences,
-            "evicted_sequences": self.evicted_sequences,
-            "iterations": self.iterations,
-            "total_generated_tokens": self.total_generated_tokens,
-            "used_blocks": self.used_blocks,
-            "free_blocks": self.free_blocks,
-            "max_blocks_used": self.max_blocks_used,
-        }
+        return asdict(self)
 
 
 class SchedulerBackend(Protocol):
@@ -158,24 +139,14 @@ class ModelRunnerBackend:
     def decode_batch(
         self, token_ids: list[int], kvs: list[object]
     ) -> tuple[list[torch.Tensor], list[object]]:
-        """
-        One batched decode step over the running set.
-
-        Per-sequence caches are stacked (full-attn KV left-padded to a common
-        length, linear states cat'd); each row gets its TRUE position via
-        position_ids and a left-padded attention mask so RoPE and masking are
-        correct despite the ragged lengths. The updated batched cache is split
-        back into per-sequence caches.
-        """
+        """One batched decode: stack caches, forward, split back per sequence."""
         batched, lengths = stack_caches(kvs)
         batch = len(token_ids)
         max_len = max(lengths)
         input_ids = torch.tensor([[t] for t in token_ids], dtype=torch.long, device=self.device)
-        # Mask covers padded past (max_len) + the 1 new token; ones are right-aligned.
-        attn = torch.zeros((batch, max_len + 1), dtype=torch.long, device=self.device)
+        attn = torch.zeros((batch, max_len + 1), dtype=torch.bool, device=self.device)
         for i, length in enumerate(lengths):
-            attn[i, max_len - length:] = 1
-        # The new token sits at position == the sequence's current true length.
+            attn[i, max_len - length:] = True
         position_ids = torch.tensor([[length] for length in lengths], dtype=torch.long, device=self.device)
         logits, batched = self.runner.forward(
             input_ids, batched, attention_mask=attn, position_ids=position_ids
@@ -186,13 +157,7 @@ class ModelRunnerBackend:
 
 
 class ContinuousBatchScheduler:
-    """
-    FCFS iteration-level scheduler.
-
-    Admission reserves prompt+max_tokens blocks up front. This deliberately
-    avoids mid-generation overcommit while the runtime paged cache is still a
-    phase-05 follow-up.
-    """
+    """FCFS scheduler; admission reserves prompt+max_tokens blocks up front."""
 
     def __init__(self, backend: SchedulerBackend, config: SchedulerConfig) -> None:
         self.backend = backend
@@ -232,14 +197,7 @@ class ContinuousBatchScheduler:
         return rid
 
     def step(self) -> SchedulerMetrics:
-        """
-        Run one scheduler iteration: admit, decode the running set in ONE batched
-        forward, evict finished, backfill.
-
-        Sampling for every running sequence happens first (each from its own
-        last_logits), then the still-active subset is decoded together in a single
-        batched forward — this is what turns concurrency into throughput.
-        """
+        """Admit, sample, batched decode, evict finished, backfill."""
         self._maybe_admit()
         if not self._running:
             return self.metrics_snapshot()
@@ -271,8 +229,6 @@ class ContinuousBatchScheduler:
         return self.metrics_snapshot()
 
     def _maybe_admit(self) -> None:
-        """Admit waiting requests. Static batching only admits a fresh cohort once
-        the running set has fully drained; continuous batching backfills always."""
         if self.config.continuous or not self._running:
             self._admit_waiting()
 

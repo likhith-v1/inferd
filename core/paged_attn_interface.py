@@ -9,8 +9,7 @@ decode step, stores the layer's K/V into a `PagedKVCache` and computes attention
 via `core.paged_attn.paged_attention` (gather from blocks + attend). Prefill and
 batched steps delegate to the stock eager path so the model still runs.
 
-Enable with `install("paged_ref")` then set `config._attn_implementation`.
-This is a validation/integration seam, not yet the production runtime cache.
+Enable with `install()` (patches the eager global). Validation seam, not production runtime.
 """
 
 from __future__ import annotations
@@ -20,7 +19,6 @@ import torch
 from core.paged_attn import paged_attention
 from core.paged_cache import PagedKVCache
 
-_NAME = "paged_ref"
 _BLOCK_SIZE = 16
 
 

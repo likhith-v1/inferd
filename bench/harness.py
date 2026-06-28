@@ -26,13 +26,8 @@ from __future__ import annotations
 
 import argparse
 import sys
-import time
 from pathlib import Path
 
-
-# ---------------------------------------------------------------------------
-# Self-check: verifies metric arithmetic on synthetic fixtures; no GPU needed.
-# ---------------------------------------------------------------------------
 
 def _selfcheck() -> bool:
     """
@@ -92,10 +87,6 @@ def _selfcheck() -> bool:
         print("[selfcheck] PASS — metric arithmetic verified on synthetic fixtures.")
         return True
 
-
-# ---------------------------------------------------------------------------
-# CLI
-# ---------------------------------------------------------------------------
 
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p = argparse.ArgumentParser(
@@ -217,11 +208,13 @@ def main(argv: list[str] | None = None) -> int:
         )
         print("\n[harness] paged-cache microbenchmark complete.")
         for pt in result["points"]:
+            ratio = pt.get("memory_ratio_vs_naive_measured")
+            ratio_s = f"{ratio:.3f}" if ratio is not None else "n/a"
             print(
                 f"  c={pt['concurrency']:>2} blocks={pt['allocated_blocks']:>4} "
-                f"paged={pt['paged_kv_mb']:>8.2f}MiB "
-                f"naive={pt['naive_prealloc_kv_mb']:>8.2f}MiB "
-                f"ratio={pt['memory_ratio_vs_naive']:.3f}"
+                f"paged={pt['paged_kv_mb_measured']:>8.2f}MiB "
+                f"naive={pt['naive_prealloc_kv_mb_measured']:>8.2f}MiB "
+                f"ratio={ratio_s}"
             )
 
     elif args.engine == "batched":

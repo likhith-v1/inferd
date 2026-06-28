@@ -36,10 +36,6 @@ from dataclasses import dataclass, field
 from typing import Optional
 
 
-# ---------------------------------------------------------------------------
-# Core metric functions
-# ---------------------------------------------------------------------------
-
 def ttft(start: float, first_token_time: float) -> float:
     """Time-to-first-token in seconds. Single-stream (concurrency=1) only."""
     return first_token_time - start
@@ -70,10 +66,6 @@ def throughput(total_tokens: int, wall_time: float) -> float:
         return 0.0
     return total_tokens / wall_time
 
-
-# ---------------------------------------------------------------------------
-# VRAM sampler (engine-agnostic via nvidia-smi)
-# ---------------------------------------------------------------------------
 
 class VramSampler:
     """
@@ -151,10 +143,6 @@ class VramSampler:
         self.stop()
 
 
-# ---------------------------------------------------------------------------
-# Result dataclasses
-# ---------------------------------------------------------------------------
-
 @dataclass
 class SingleStreamResult:
     """Metrics for a single-stream (concurrency=1) run."""
@@ -195,10 +183,6 @@ class BenchResult:
     notes: list[str] = field(default_factory=list)
 
 
-# ---------------------------------------------------------------------------
-# Environment stamping
-# ---------------------------------------------------------------------------
-
 def env_stamp(seed: int, workload_hash_str: str, extra: Optional[dict] = None) -> dict:
     """
     Collect a reproducibility stamp for a benchmark result.
@@ -206,7 +190,6 @@ def env_stamp(seed: int, workload_hash_str: str, extra: Optional[dict] = None) -
     Includes: GPU info, CUDA/driver, Python/torch/transformers versions,
     git commit, timestamp, seed, workload hash.
     """
-    import importlib
     import platform
     import sys
 

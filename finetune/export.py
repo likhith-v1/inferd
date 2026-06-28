@@ -8,16 +8,6 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parent.parent
-VISION_ATTRS = ("visual", "vision_model", "vision_tower", "image_tower", "vpm", "vision_encoder")
-
-
-def strip_vision_modules(container) -> list[str]:
-    stripped: list[str] = []
-    for attr in VISION_ATTRS:
-        if hasattr(container, attr):
-            delattr(container, attr)
-            stripped.append(attr)
-    return stripped
 
 
 def parse_args() -> argparse.Namespace:
@@ -40,12 +30,14 @@ def parse_args() -> argparse.Namespace:
 
 
 def selfcheck() -> None:
+    from bench.model_loader import _strip_vision
+
     class Dummy:
         def __init__(self) -> None:
             self.visual = object()
 
     dummy = Dummy()
-    stripped = strip_vision_modules(dummy)
+    stripped = _strip_vision(dummy)
     assert stripped == ["visual"]
     assert not hasattr(dummy, "visual")
 
@@ -71,6 +63,8 @@ def main() -> int:
     from peft import PeftModel
     from transformers import AutoModelForMultimodalLM, AutoTokenizer
 
+    from bench.model_loader import _strip_vision
+
     base_ref = resolve_ref(args.base)
     print(f"[export] loading base={base_ref}")
     base = AutoModelForMultimodalLM.from_pretrained(
@@ -88,9 +82,9 @@ def main() -> int:
 
     stripped: list[str] = []
     if args.strip_vision:
-        stripped += strip_vision_modules(model)
+        stripped += _strip_vision(model)
         if hasattr(model, "model"):
-            stripped += strip_vision_modules(model.model)
+            stripped += _strip_vision(model.model)
         print(f"[export] stripped vision attrs={stripped}")
 
     args.out.mkdir(parents=True, exist_ok=True)
