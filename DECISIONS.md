@@ -197,3 +197,50 @@ bias before being quoted as headline figures.
   takes prompt + max_tokens in v1). (2) No auth / multi-tenant / HTTPS (local
   single-user, per scope). (3) Single served model at a time. (4) `security-review` and
   `code-review` gates on the request-handling/threading path not yet run.
+
+## 2026-06-28 — Phase 09: benchmarks, correctness & report (one command)
+
+`bench/run_all.py` is the one-command aggregator: three-rung throughput sweep,
+spec-decode γ-sweep (stock + distilled draft), the correctness gate, and the
+plots + `bench/report.md` — all regenerable from committed `bench/results/`.
+
+**The three-rung table must compare the *identical* workload.** First pass put the
+naive-HF rung (exactly `c` requests × max_tokens) next to the Phase-06 batched
+runner in *fixed-pool-of-32 + vary_lengths* mode (constant 2063-token drain) and
+produced a nonsense "0.66× / naive is faster" headline — apples-to-oranges. Fix:
+`run_all` runs **ours in matched mode** — per-c calls with `total_requests == c`,
+no length variance — so both rungs do like-for-like work at every batch width. The
+headline now compares **per-concurrency** (not peak-vs-peak).
+
+**Measured (greedy, 9B, max_tokens=96, RTX 5090):**
+
+| c | naive HF tok/s | ours tok/s | ratio |
+|---|---|---|---|
+| 1 | 29.8 | 44.3 | 1.49× |
+| 8 | 116.0 | 236.8 | 2.04× |
+| 16 | 24.4 | 356.8 | 14.6× |
+| 32 | 23.3 | 461.8 | **19.8×** |
+
+Ours wins at **every** concurrency; the gap widens with load — naive HF has no KV
+cache and collapses past c=8 on quadratic recompute, while continuous batching
+scales. VRAM scales sanely (19→24 GB).
+
+**Correctness gate: PASS @ n=1500** (multi-token per-position TV test, 3 prompts ×
+6 positions, all within the bootstrapped direct-vs-direct null 99th pctile). This
+is the differentiator: spec-decode output is statistically indistinguishable from
+direct target sampling → the rejection-sampling accept rule + residual resampling
+are exact.
+
+**Spec-decode is net-negative on throughput here (honest).** α is healthy (stock
+0.31–0.63, distilled 0.36–0.68) and **draft distillation lifts α** (Δα up to
++0.056, mean +0.048), but end-to-end speedup is ~0.6–0.7× the target-only baseline:
+draft+verify overhead exceeds the acceptance gain at 9B/0.8B on this hardware. The
+*correctness proof* and the *α-lift bridge* are the wins, not the wall-clock.
+
+**vLLM ceiling: deferred** — won't build on Blackwell (sm_120); reported as
+"ceiling pending," never faked (per the phase's rollback rule).
+
+**Still open:** (1) vLLM ceiling pending on sm_120; (2) the matched-mode "ours"
+curve leans on naive HF's no-KV-cache collapse at high c for the 19.8× headline —
+the more conservative, defensible numbers are the 1.5–2.0× at c≤8; (3) spec-decode
+throughput would need a faster draft path / batched accept to go net-positive.
