@@ -13,6 +13,7 @@ import dataclasses
 import json
 import random
 import time
+from math import ceil
 from pathlib import Path
 
 import inferd.env  # noqa: F401  (CUDA preload before torch)
@@ -37,6 +38,21 @@ def _resolve_model_path(model_name: str) -> Path:
     if path.exists():
         return path
     return WEIGHTS_ROOT / model_name
+
+
+def _default_max_blocks(
+    concurrency_grid: list[int],
+    max_tokens: int,
+    block_size: int,
+    tokenizer,
+    prompts: list[str],
+) -> int:
+    """Block budget sized for prompt_len + max_tokens per admitted sequence."""
+    max_prompt = max(
+        len(tokenizer(p, return_tensors="pt").input_ids[0]) for p in prompts
+    )
+    blocks_per_seq = ceil((max_prompt + max_tokens) / block_size)
+    return max(concurrency_grid) * blocks_per_seq
 
 
 def _run_scheduler_point(
@@ -140,7 +156,9 @@ def run(
     if total_requests is None:
         total_requests = max(concurrency_grid)
     if max_blocks is None:
-        max_blocks = max(concurrency_grid) * ((max_tokens + block_size - 1) // block_size)
+        max_blocks = _default_max_blocks(
+            concurrency_grid, max_tokens, block_size, runner.tokenizer, PROMPTS
+        )
 
     result = BenchResult(
         engine="batched",

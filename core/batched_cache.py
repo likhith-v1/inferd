@@ -20,6 +20,24 @@ def _full_attn_layers(cache) -> list[int]:
     return [i for i in range(len(cache.key_cache)) if cache.key_cache[i] is not None]
 
 
+def _cache_seq_length(cache) -> int:
+    """KV length from the first populated full-attention layer.
+
+    Qwen3.5 hybrid caches may place linear-attention layers before the first
+    full-attention layer; ``get_seq_length()`` defaults to layer 0 and can
+    return 0 while later ``key_cache`` rows hold the real prompt length.
+    """
+    full_layers = _full_attn_layers(cache)
+    if full_layers:
+        return int(cache.key_cache[full_layers[0]].shape[-2])
+    tf_layers = getattr(cache, "transformer_layers", None)
+    if tf_layers:
+        for idx in tf_layers:
+            if cache.key_cache[idx] is not None:
+                return int(cache.key_cache[idx].shape[-2])
+    return int(cache.get_seq_length())
+
+
 def _empty_like(cache):
     n = len(cache.key_cache)
     shell = copy.copy(cache)
@@ -34,7 +52,7 @@ def stack_caches(caches: list):
     """Stack single-row caches; returns (batched_cache, per-row true KV lengths)."""
     if not caches:
         raise ValueError("stack_caches requires at least one cache")
-    lengths = [int(c.get_seq_length()) for c in caches]
+    lengths = [_cache_seq_length(c) for c in caches]
     max_len = max(lengths)
     n_layers = len(caches[0].key_cache)
     batched = _empty_like(caches[0])
