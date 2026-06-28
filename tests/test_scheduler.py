@@ -152,6 +152,50 @@ class SchedulerTest(unittest.TestCase):
         self.assertEqual(scheduler.get(1).status, RequestStatus.FAILED)
         self.assertIn("max_model_len", scheduler.get(1).error)
 
+    def test_cancel_running_frees_blocks(self):
+        scheduler = ContinuousBatchScheduler(
+            FakeBackend(),
+            SchedulerConfig(max_blocks=4, block_size=4, max_concurrent_sequences=2),
+        )
+        scheduler.submit([1, 2], max_tokens=8, request_id=1)  # reserves ceil(10/4)=3 blocks
+        scheduler.step()  # admit + start running (reserves blocks)
+        self.assertEqual(scheduler.get(1).status, RequestStatus.RUNNING)
+        used_before = scheduler.metrics_snapshot().used_blocks
+        self.assertGreater(used_before, 0)
+
+        cancelled = scheduler.cancel(1)
+
+        self.assertTrue(cancelled)
+        self.assertEqual(scheduler.get(1).status, RequestStatus.CANCELLED)
+        metrics = scheduler.metrics_snapshot()
+        self.assertEqual(metrics.active_sequences, 0)
+        self.assertEqual(metrics.used_blocks, 0)  # blocks freed immediately
+        self.assertEqual(metrics.free_blocks, 4)
+
+    def test_cancel_waiting_request(self):
+        scheduler = ContinuousBatchScheduler(
+            FakeBackend(),
+            SchedulerConfig(max_blocks=1, block_size=4, max_concurrent_sequences=1),
+        )
+        scheduler.submit([1, 2], max_tokens=2, request_id=1)  # running after step
+        scheduler.submit([3, 4], max_tokens=2, request_id=2)  # stays waiting
+        scheduler.step()
+        self.assertEqual(scheduler.get(2).status, RequestStatus.WAITING)
+
+        self.assertTrue(scheduler.cancel(2))
+        self.assertEqual(scheduler.get(2).status, RequestStatus.CANCELLED)
+        self.assertEqual(scheduler.metrics_snapshot().waiting_sequences, 0)
+
+    def test_cancel_unknown_or_terminal_returns_false(self):
+        scheduler = ContinuousBatchScheduler(
+            FakeBackend(),
+            SchedulerConfig(max_blocks=4, block_size=4),
+        )
+        self.assertFalse(scheduler.cancel(999))  # never submitted
+        scheduler.submit([1], max_tokens=1, request_id=1)
+        scheduler.run_until_complete()  # completes
+        self.assertFalse(scheduler.cancel(1))  # already terminal
+
 
 if __name__ == "__main__":
     unittest.main()
