@@ -1,5 +1,7 @@
 # inferd
 
+> **Work in progress.** This repository is under active development. APIs, benchmarks, and documentation may change without notice. Several planned components (`serve/`, `dashboard/`, FP8 hero demo) are not implemented yet. Treat numbers in `bench/results/` as snapshots from specific runs, not final portfolio claims. See [Current status](#current-status) for what exists today.
+
 A from-scratch local LLM inference stack: **QLoRA fine-tuning → speculative decoding → paged KV-cache → continuous batching**, served via FastAPI with a React metrics dashboard. Benchmarked against a naive Hugging Face baseline and vLLM as the reference ceiling. Runs fully offline on a single RTX 5090 — no cloud APIs, no external inference dependencies.
 
 The thesis is depth on both ends: fine-tune a showcase model *and* serve it through an engine you built yourself. Most projects stop at "I LoRA'd a model" or "I wrapped vLLM." This repo closes the loop.
@@ -8,46 +10,104 @@ The thesis is depth on both ends: fine-tune a showcase model *and* serve it thro
 
 ## What it does
 
-| Layer | Responsibility |
-|-------|----------------|
-| **Fine-tuning** | QLoRA SFT of a 27B showpiece + 9B engine target on a domain corpus; draft distillation for acceptance-rate lift |
-| **Inference core** | Exact speculative decoding, paged KV-cache (Triton kernel), iteration-level continuous batching |
-| **Serving** | FastAPI async queue, SSE token streaming, `/metrics` and `/healthz` |
-| **Benchmarking** | Headless harness (source of truth), distribution-equivalence test, throughput-vs-concurrency curves |
-| **Dashboard** | Live tokens/sec, TTFT, draft acceptance rate α, VRAM, concurrency |
+| Layer | Responsibility | Status |
+|-------|----------------|--------|
+| **Fine-tuning** | QLoRA SFT of a 27B showpiece + 9B engine target; draft distillation for acceptance-rate lift | Implemented (`finetune/`) |
+| **Inference core** | Exact speculative decoding, paged KV-cache, iteration-level continuous batching | Implemented (`core/`) |
+| **Benchmarking** | Headless harness, distribution-equivalence test, throughput-vs-concurrency curves | Implemented (`bench/`) |
+| **Serving** | FastAPI async queue, SSE token streaming, `/metrics` and `/healthz` | Planned (phase 07) |
+| **Dashboard** | Live tokens/sec, TTFT, draft acceptance rate α, VRAM, concurrency | Planned (phase 08) |
+
+---
+
+## Quick start
+
+**Requirements:** WSL2 Ubuntu, RTX 5090 (Blackwell sm_120), CUDA 12.8+, [uv](https://docs.astral.sh/uv/), `gcc`/`g++` for Triton JIT. Full stack details in [`docs/ENVIRONMENT.md`](docs/ENVIRONMENT.md).
+
+```bash
+# 1. Install dependencies (pinned in uv.lock)
+uv sync
+sudo apt-get install -y gcc g++   # Triton kernel JIT
+
+# 2. Download weights (one-time; requires HF token + accepted license)
+hf auth login
+hf download Qwen/Qwen3.5-9B --local-dir ./weights/Qwen3.5-9B
+
+# 3. Smoke test — load text backbone, one forward pass
+uv run python scripts/smoke_load.py
+
+# 4. Run unit tests (no GPU required for most)
+uv run python -m unittest discover -s tests -v
+
+# 5. Benchmark self-check (no GPU)
+uv run python -m bench.harness --selfcheck
+```
+
+Weights, adapters, merged checkpoints, and datasets are gitignored and live under `./weights/`, `./adapters/`, `./merged/`, and `./data/` locally. See [`DECISIONS.md`](DECISIONS.md) for training artifacts and pinned choices.
 
 ---
 
 ## Architecture
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│  Dashboard (React + Vite)                                    │
-│  tokens/sec · TTFT · inter-token latency · draft accept rate │
-│  VRAM utilization · concurrent requests · throughput curves  │
-└───────────────────────────┬─────────────────────────────────┘
-                            │ SSE / WebSocket
-┌───────────────────────────┴─────────────────────────────────┐
-│  Serving layer (FastAPI, async)                              │
-│  request queue · iteration-level scheduler · token streaming │
-│  /generate (SSE) · /metrics · /healthz                       │
-└───────────────────────────┬─────────────────────────────────┘
-                            │ in-process
-┌───────────────────────────┴─────────────────────────────────┐
-│  Inference core (Python + Triton)                            │
-│  spec decoding (draft runner + accept/resample) · paged      │
-│  KV-cache (allocator + page table) · paged-attn kernel       │
-│  model runner (target + draft, bf16; 27B via FP8)            │
-└───────────────────────────┬─────────────────────────────────┘
-                            │ loads adapters / merged weights
-┌───────────────────────────┴─────────────────────────────────┐
-│  Fine-tuning stage (Unsloth first; offline)                  │
-│  QLoRA SFT of 27B showpiece + 9B/0.8B engine pair            │
-│  golden-set eval · adapter export · merge-for-serving        │
-└──────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    dash["Dashboard<br/>React + Vite · planned<br/>tokens/sec · TTFT · α · VRAM"]
+    serve["Serving<br/>FastAPI + SSE · planned<br/>queue · scheduler · streaming"]
+    core["Inference core · live<br/>spec decode · paged KV · batching<br/>model runner (target + draft, bf16)"]
+    ft["Fine-tuning · live<br/>Unsloth QLoRA · golden eval · export · draft KD"]
+
+    dash -->|SSE / WebSocket| serve
+    serve -->|in-process| core
+    ft -->|adapters / merged weights| core
 ```
 
-The core is importable and headless-benchmarkable — measurement never depends on the HTTP stack. Fine-tuning is fully offline and feeds adapters/merged weights into the engine.
+| Layer | Package | Status |
+|-------|---------|--------|
+| Dashboard | `dashboard/` | Planned |
+| Serving | `serve/` | Planned |
+| Inference core | `core/` | Live |
+| Fine-tuning | `finetune/` | Live |
+| Benchmarks | `bench/` | Live (headless; no HTTP required) |
+
+The core is importable and headless-benchmarkable — measurement never depends on the HTTP stack.
+
+---
+
+## Repository layout
+
+```
+inferd/
+├── inferd/                 # Package root: env bootstrap, CUDA lib preload
+├── core/                   # Inference engine
+│   ├── model_runner.py     # Shared hot file: load + forward(tokens, kv)
+│   ├── spec_decode.py      # Exact rejection sampling + resample
+│   ├── paged_cache.py      # Block allocator + page table
+│   ├── paged_attn.py       # Paged-attention reference (Triton kernel TBD)
+│   ├── batched_cache.py    # Stack/split hybrid caches for batched decode
+│   └── scheduler.py        # FCFS continuous batching
+├── finetune/               # QLoRA training pipeline
+│   ├── train_qlora.py      # Unsloth-first SFT entrypoint
+│   ├── eval_golden.py      # Golden-set regression checks
+│   ├── distill_draft.py    # Sequence-level KD for draft α-lift
+│   └── export.py           # Adapter export + merge-for-serving
+├── bench/                  # Headless benchmark harness (source of truth)
+│   ├── harness.py          # CLI: hf / spec / paged / batched / vllm
+│   ├── correctness.py      # Distribution-equivalence gate
+│   ├── workload.py         # Frozen prompts + sampling profiles
+│   ├── runners/            # Engine-specific runners
+│   └── results/            # Pinned JSON results (append-only)
+├── tests/                  # Unit + equivalence tests
+├── scripts/                # smoke_load.py and other entrypoints
+├── docs/                   # ENVIRONMENT.md and setup notes
+├── plans/                  # Phased execution pack (00–11)
+├── plan.md                 # Design vision
+├── DECISIONS.md            # Load-bearing decisions with dates
+└── uv.lock                 # Pinned dependency lockfile
+```
+
+Planned but not yet present: `serve/`, `dashboard/`, `bench/run_all.py`.
+
+`core/model_runner.py` is the shared hot file — phases extend it via new methods; callers treat `kv` as an opaque handle.
 
 ---
 
@@ -57,7 +117,7 @@ Roles are split across Qwen generations: a 27B showpiece for fine-tuning, and a 
 
 | Role | Model | Notes |
 |------|-------|-------|
-| Fine-tune showpiece | `Qwen/Qwen3.6-27B` | QLoRA only; served via FP8 in the hero demo |
+| Fine-tune showpiece | `Qwen/Qwen3.6-27B` | QLoRA only; served via FP8 in the hero demo (phase 10) |
 | Engine target | `Qwen/Qwen3.5-9B` | bf16 ≈ 18 GB; leaves KV-cache headroom for batching |
 | Engine draft | `Qwen/Qwen3.5-0.8B` | bf16 ≈ 1.6 GB; distilled against the fine-tuned 9B |
 | Fallback drafts | `Qwen3.5-2B` / `4B` | Same family if 0.8B acceptance rate is too low |
@@ -81,9 +141,7 @@ if all γ accepted:
     sample one bonus token from p at the final position
 ```
 
-The residual-resampling branch is the most commonly botched part of from-scratch implementations. A correctness test (`bench/correctness.py`) proves equivalence via χ² or total-variation on next-token distributions.
-
-**The α-lift experiment** bridges fine-tuning and inference: distill the draft on the fine-tuned 9B's own generations (sequence-level KD), hold the target fixed, and compare stock vs distilled draft → Δα, Δthroughput.
+`bench/correctness.py` exercises this via a multi-token statistical gate against a bootstrapped direct-vs-direct null envelope. Qwen3.5's hybrid linear-attention cache requires a custom parallel-verify patch (`core/qwen35_patch.py`) and snapshot/replay rollback — see `DECISIONS.md` for the honest throughput findings.
 
 ---
 
@@ -93,44 +151,74 @@ The residual-resampling branch is the most commonly botched part of from-scratch
 |------|---------|
 | Fine-tuning | Unsloth first; Axolotl / Llama-Factory / ms-swift / TRL+PEFT as fallbacks. bitsandbytes 4-bit NF4. **No GemForge.** |
 | Core | Python, PyTorch (Blackwell CUDA 12.8+), Triton (paged attention), Hugging Face Transformers |
-| Serving | FastAPI + uvicorn, async queue, SSE streaming |
-| Dashboard | React + Vite, Recharts/uPlot |
+| Serving | FastAPI + uvicorn, async queue, SSE streaming *(planned)* |
+| Dashboard | React + Vite, Recharts/uPlot *(planned)* |
 | Environment | WSL2 Ubuntu, `uv` lockfile, everything pinned |
 | Reference | vLLM (ceiling only) |
 
-FP8 is the **one quantization exception**, scoped to the fine-tuned 27B hero demo only.
+FP8 is the **one quantization exception**, scoped to the fine-tuned 27B hero demo only (phase 10).
 
 ---
 
-## Target repo layout
+## Current status
 
-```
-inferd/
-├── finetune/
-│   ├── train_qlora.py        # QLoRA SFT (27B showpiece + 9B target)
-│   ├── eval_golden.py        # 50-prompt golden set, win-rate vs base
-│   ├── distill_draft.py      # sequence-level KD for α-lift
-│   └── export.py             # adapter export + merge-for-serving
-├── core/
-│   ├── spec_decode.py        # draft runner + accept/resample
-│   ├── paged_cache.py        # block allocator + page table
-│   ├── paged_attn.py         # Triton kernel (+ FlashAttention varlen fallback)
-│   ├── scheduler.py          # iteration-level continuous batching
-│   └── model_runner.py       # target/draft loading, bf16; 27B FP8 path
-├── serve/
-│   ├── app.py                # FastAPI: /generate, /metrics, /healthz
-│   └── stream.py             # SSE token streaming
-├── bench/
-│   ├── harness.py            # headless workload runner (source of truth)
-│   ├── correctness.py        # distribution-equivalence test
-│   └── results/              # pinned numbers + plots
-├── dashboard/                # React + Vite
-├── DECISIONS.md
-├── uv.lock
-└── README.md
+Phases **01–06** have working code; **07–11** (serving, dashboard, aggregated reporting, FP8 hero, portfolio docs) are still ahead.
+
+| Phase | Deliverable | Status |
+|-------|-------------|--------|
+| 01 — Environment | Pinned WSL2 + CUDA stack; smoke test | Done |
+| 02 — Harness | Reproducible HF floor + vLLM ceiling | Done |
+| 03 — QLoRA | Fine-tuned 9B + 27B adapters; golden-set eval | Done (9B merged; 27B merge deferred) |
+| 04 — Spec decode | Exact rejection sampling + correctness gate; α-lift | Done (correctness proven; net speedup negative on hybrid model) |
+| 05 — Paged KV | Block allocator + reference paged attention | Done (runtime persistent cache TBD) |
+| 06 — Batching | Iteration-level scheduler + batched decode | Done |
+| 07 — Serving | FastAPI + SSE | Not started |
+| 08 — Dashboard | Live metrics UI | Not started |
+| 09 — Bench/report | Aggregated plots; one-command reproduce | Not started |
+| 10 — FP8 hero | Fine-tuned 27B via FP8 | Not started |
+| 11 — Docs | Portfolio-ready README with final numbers | In progress |
+
+### Early results (preliminary)
+
+These are honest snapshots from `bench/results/` — not final headline numbers.
+
+| Experiment | Result | Notes |
+|------------|--------|-------|
+| HF naive floor (9B) | ~28 tok/s single-stream | `bench/results/20260626T123109Z_hf_Qwen3.5-9B/` |
+| Spec decode (stock 0.8B draft) | α ≈ 0.62–0.69; **0.5× baseline throughput** | Hybrid linear-attention replay tax; see phase 04 decision |
+| Draft distillation α-lift | Modest lift at γ=8 (+0.08 α); throughput unchanged | Replay tax dominates, not α |
+| Continuous batching (9B) | **~35 → 123 → 199 tok/s** at c=1/4/8 | Real batched decode; `DECISIONS.md` 2026-06-28 |
+| Paged KV equivalence | max\|Δlogit\| = 0 on model-level compute gate | Reference path; no Triton kernel yet |
+
+**Known gaps:** no persistent paged runtime cache (KV still in HF caches during generation); batched speculative decoding not implemented; vLLM ceiling runner is best-effort and may defer on sm_120.
+
+---
+
+## Running benchmarks
+
+All engines share the frozen workload in `bench/workload.py` (prompts, seeds, sampling profiles).
+
+```bash
+# HF naive floor
+uv run python -m bench.harness --engine hf --model Qwen3.5-9B \
+    --seed 0 --max-tokens 256 --concurrency 1,2,4,8
+
+# Speculative decoding (needs merged/9b target + draft weights)
+uv run python -m bench.harness --engine spec \
+    --target merged/9b --draft weights/Qwen3.5-0.8B
+
+# Paged-cache microbenchmark
+uv run python -m bench.harness --engine paged --model merged/9b
+
+# Continuous batching
+uv run python -m bench.harness --engine batched --model merged/9b \
+    --concurrency 1,4,8
+
+# Distribution-equivalence gate
+uv run python -m bench.correctness --target merged/9b --draft weights/Qwen3.5-0.8B
 ```
 
-`core/model_runner.py` is the shared hot file — phases extend it via new methods; callers treat `kv` as an opaque handle (contiguous early, paged later).
+Results are written to `bench/results/<timestamp>_<engine>_<model>/result.json` (append-only).
 
 ---
 
@@ -138,21 +226,7 @@ inferd/
 
 Build order: **harness → QLoRA → spec-decode (+ α-lift) → paged cache → continuous batching → serving → dashboard → FP8 hero**. Each phase is a defensible stopping point.
 
-| Phase | Deliverable |
-|-------|-------------|
-| 01 — Environment | Pinned WSL2 + CUDA 12.8+ stack; smoke test on Qwen3.5-9B text backbone |
-| 02 — Harness | Reproducible baseline: naive HF floor + vLLM ceiling on identical workloads |
-| 03 — QLoRA | Fine-tuned 27B showpiece + 9B target; golden-set win-rate measured |
-| 04 — Spec decode | Exact rejection sampling + correctness test; α-lift experiment quantified |
-| 05 — Paged KV | Block allocator + Triton paged attention; numerically equivalent to contiguous |
-| 06 — Batching | Iteration-level scheduler; throughput-vs-concurrency vs naive batching |
-| 07 — Serving | FastAPI + SSE; core stays headless-benchmarkable |
-| 08 — Dashboard | Live metrics; demo under load |
-| 09 — Bench/report | Aggregated plots; all numbers reproducible from one command |
-| 10 — FP8 hero | Fine-tuned 27B served single-stream via FP8 (optional capstone) |
-| 11 — Docs | `DECISIONS.md` + portfolio-ready README with real numbers |
-
-Development uses one git worktree per phase (`phase-NN-slug` → merge into `dev` in order; `dev` → `main` at milestones).
+Development uses one git worktree per phase (`phase-NN-slug` → merge into `dev` in order). See `plans/00_MASTER_ORCHESTRATION.md` for cross-phase rules.
 
 ---
 
@@ -164,9 +238,8 @@ Development uses one git worktree per phase (`phase-NN-slug` → merge into `dev
 - **Policy:** local-first, offline after one-time weight download; no cloud/API inference
 
 ```bash
-# Phase 01 target (once implemented)
 uv sync
-uv run python scripts/smoke_load.py        # load text backbone, one forward pass
+uv run python scripts/smoke_load.py
 HF_HUB_OFFLINE=1 uv run python scripts/smoke_load.py   # prove offline
 ```
 
@@ -186,12 +259,6 @@ Metrics: throughput (single-stream and aggregate), TTFT, inter-token latency, dr
 
 ---
 
-## Current status
-
-**Early planning phase.** The repository defines architecture, constraints, and a phased execution plan. Implementation directories (`core/`, `bench/`, `finetune/`, `serve/`, `dashboard/`) are not yet present. Active development happens on the `dev` branch; `main` carries project documentation.
-
----
-
 ## Key design decisions
 
 - **QLoRA, not full fine-tuning** — only realistic single-5090 path for a 27B
@@ -200,6 +267,8 @@ Metrics: throughput (single-stream and aggregate), TTFT, inter-token latency, dr
 - **Benchmark harness before optimization** — no speedup claim without a reproducible baseline
 - **Draft distillation as the bridge** — train draft on fine-tuned target's own outputs, not a shared corpus
 - **No GemForge** — use maintained QLoRA stacks only (Unsloth first)
+
+Full rationale and dated entries: [`DECISIONS.md`](DECISIONS.md).
 
 ---
 

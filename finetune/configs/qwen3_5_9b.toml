@@ -1,0 +1,31 @@
+[model]
+id = "Qwen/Qwen3.5-9B"
+local_path = "weights/Qwen3.5-9B"
+max_seq_length = 2048
+
+[dataset]
+train_jsonl = "data/processed/code_alpaca_20k/train.jsonl"
+validation_jsonl = "data/processed/code_alpaca_20k/validation.jsonl"
+text_field = "text"
+
+[lora]
+r = 16
+alpha = 32
+dropout = 0.0
+target_modules = ["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"]
+
+[training]
+output_dir = "adapters/9b"
+run_name = "qwen3_5_9b_code_alpaca_qlora"
+per_device_train_batch_size = 1
+per_device_eval_batch_size = 1
+gradient_accumulation_steps = 16
+learning_rate = 0.0002
+num_train_epochs = 1
+warmup_steps = 50
+logging_steps = 10
+eval_steps = 250
+save_steps = 250
+max_steps = -1
+seed = 0
+

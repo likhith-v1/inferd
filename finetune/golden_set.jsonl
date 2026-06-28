@@ -1,0 +1,30 @@
+{"id":"golden-001","category":"python-list","prompt":"Write a Python function named sum_sequence that returns the sum of a list of integers.","expected_contains":["def sum_sequence","sum("]}
+{"id":"golden-002","category":"python-string","prompt":"Write a Python function named reverse_words that reverses the order of words in a sentence while preserving each word.","expected_contains":["def reverse_words","split","join"]}
+{"id":"golden-003","category":"python-dict","prompt":"Write a Python function named count_frequencies that returns a dictionary mapping each item in a list to its frequency.","expected_contains":["def count_frequencies","dict","for"]}
+{"id":"golden-004","category":"python-file","prompt":"Write Python code to read a UTF-8 text file and return a list of non-empty stripped lines.","expected_contains":["open(","encoding","strip"]}
+{"id":"golden-005","category":"python-json","prompt":"Write a Python function named load_json_file that loads a JSON file from disk and returns the parsed object.","expected_contains":["json.load","open(","def load_json_file"]}
+{"id":"golden-006","category":"python-error-handling","prompt":"Write a Python function that safely divides two numbers and returns None when division by zero occurs.","expected_contains":["ZeroDivisionError","try","except"]}
+{"id":"golden-007","category":"python-testing","prompt":"Write a pytest test for a function add(a, b) that should return the sum of two numbers.","expected_contains":["def test_","assert","add("]}
+{"id":"golden-008","category":"python-class","prompt":"Create a Python dataclass named User with fields id, name, and email.","expected_contains":["@dataclass","class User","email"]}
+{"id":"golden-009","category":"python-sort","prompt":"Write a Python function that sorts a list of dictionaries by the key score in descending order.","expected_contains":["sorted","key=","reverse=True"]}
+{"id":"golden-010","category":"python-cli","prompt":"Write a small Python argparse snippet that accepts --input and --output file paths.","expected_contains":["argparse","--input","--output"]}
+{"id":"golden-011","category":"algorithm","prompt":"Explain the time complexity of binary search and why it is logarithmic.","expected_contains":["O(log n)","half"]}
+{"id":"golden-012","category":"algorithm","prompt":"Write pseudocode for breadth-first search over a graph starting from a source node.","expected_contains":["queue","visited","neighbors"]}
+{"id":"golden-013","category":"algorithm","prompt":"Describe when you would use a hash map instead of a list for lookup-heavy workloads.","expected_contains":["O(1)","lookup","key"]}
+{"id":"golden-014","category":"debugging","prompt":"A Python script is slow because it repeatedly appends rows to a pandas DataFrame in a loop. Explain a better approach.","expected_contains":["list","concat","DataFrame"]}
+{"id":"golden-015","category":"debugging","prompt":"A function has a mutable default argument bug. Explain the problem and show the safer pattern.","expected_contains":["None","mutable default","def"]}
+{"id":"golden-016","category":"systems","prompt":"Explain what a memory leak is and name two ways to diagnose one in a long-running service.","expected_contains":["memory","profile","heap"]}
+{"id":"golden-017","category":"systems","prompt":"Explain the difference between latency and throughput in an inference service.","expected_contains":["latency","throughput","request"]}
+{"id":"golden-018","category":"systems","prompt":"Explain why batching can improve GPU throughput but may increase time-to-first-token.","expected_contains":["batch","GPU","latency"]}
+{"id":"golden-019","category":"llm-inference","prompt":"Explain KV-cache reuse during autoregressive transformer decoding.","expected_contains":["key","value","cache"]}
+{"id":"golden-020","category":"llm-inference","prompt":"Explain the accept/reject idea behind speculative decoding at a high level.","expected_contains":["draft","target","reject"]}
+{"id":"golden-021","category":"llm-inference","prompt":"Explain why a smaller draft model can speed up single-stream decoding when its predictions match the target model.","expected_contains":["draft","accept","target"]}
+{"id":"golden-022","category":"sql","prompt":"Write a SQL query that selects the top 10 users by total_spend from a users table.","expected_contains":["SELECT","ORDER BY","LIMIT 10"]}
+{"id":"golden-023","category":"sql","prompt":"Write a SQL query that counts orders per customer from an orders table.","expected_contains":["COUNT","GROUP BY","customer"]}
+{"id":"golden-024","category":"regex","prompt":"Write a Python regex snippet that extracts email addresses from a string.","expected_contains":["re.","findall","@" ]}
+{"id":"golden-025","category":"api","prompt":"Write a FastAPI route named /healthz that returns a JSON object with status ok.","expected_contains":["FastAPI","@app.get","healthz"]}
+{"id":"golden-026","category":"api","prompt":"Show how to stream server-sent events from a Python web endpoint at a high level.","expected_contains":["text/event-stream","yield","data:"]}
+{"id":"golden-027","category":"security","prompt":"Explain why hardcoding API keys in source code is dangerous and what to do instead.","expected_contains":["environment","secret","rotate"]}
+{"id":"golden-028","category":"security","prompt":"Explain one risk of using pickle on untrusted input and name a safer alternative for simple data.","expected_contains":["arbitrary code","untrusted","json"]}
+{"id":"golden-029","category":"linux","prompt":"Write a shell command to find all .py files under the current directory.","expected_contains":["find",".py","-name"]}
+{"id":"golden-030","category":"linux","prompt":"Explain what chmod +x does to a script file.","expected_contains":["execute","permission","chmod"]}

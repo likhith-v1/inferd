@@ -1,2 +1,20 @@
-/plans
-plan.md
+weights/
+data/raw/
+data/processed/
+adapters/
+merged/
+runs/
+.venv/
+bench/.venv-vllm/
+unsloth_compiled_cache/
+**/__pycache__/
+*.pyc
+*.pyo
+
+# Phase-04 worktrees symlink these shared-artifact dirs in from the main
+# checkout; the trailing-slash patterns above match real dirs but NOT a symlink
+# (which Git sees as a file). Anchor the bare names so the links are ignored too.
+/weights
+/adapters
+/merged
+/data
