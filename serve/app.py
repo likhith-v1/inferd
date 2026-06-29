@@ -91,6 +91,10 @@ def create_app(engine: Engine | None = None) -> FastAPI:
     @app.post("/generate")
     async def generate(body: GenerateRequest, request: Request):
         eng: Engine = request.app.state.engine
+        if not eng.alive:
+            # Engine thread died (e.g. a fatal error in step()); without this gate
+            # the request would submit into an undrained inbox and hang forever.
+            raise HTTPException(status_code=503, detail="engine unavailable")
         prompt_ids = eng.encode(body.prompt)
         violation = eng.limit_violation(len(prompt_ids), body.max_tokens)
         if violation:

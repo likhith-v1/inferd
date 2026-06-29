@@ -115,6 +115,13 @@ class ServeTest(unittest.TestCase):
         self.assertEqual(r.status_code, 400)
         self.assertIn("blocks", r.json()["detail"])
 
+    def test_dead_engine_returns_503(self):
+        engine = FakeEngine()
+        engine.alive = False  # engine thread crashed
+        with TestClient(create_app(engine=engine)) as client:
+            r = client.post("/generate", json={"prompt": "hi", "max_tokens": 8})
+        self.assertEqual(r.status_code, 503)
+
     def test_empty_prompt_rejected(self):
         with TestClient(create_app(engine=FakeEngine())) as client:
             r = client.post("/generate", json={"prompt": "", "max_tokens": 8})
