@@ -2,17 +2,19 @@
 scripts/hero_fp8.py — the FP8 hero demo (phase 10).
 
 Serves the model single-stream through *our own* continuous-batching engine in
-two precisions — bf16 and W8A8 FP8 (RTX 5090 sm_120 FP8 tensor cores) — and
+bf16 and FP8 (RTX 5090 sm_120 FP8 tensor cores) — and
 reports the closing-shot numbers: decode tokens/sec, TTFT, model VRAM footprint,
 peak VRAM, and a coherence spot-check (same prompt, both precisions, side by
 side). FP8 is the project's one quantization exception, scoped to this path.
 
-Note: the *intended* hero is the fine-tuned 27B. No fine-tuned 27B exists on
-this box (no 27B base downloaded, no 27B adapter trained), so per the phase-10
-rollback this runs the documented **FP8 9B hero fallback** on merged/9b. The
-exact same code path serves a merged/27b by passing --model.
+The intended hero is the fine-tuned 27B. On a 32 GB card we cannot materialize
+the merged 27B in bf16, so the 27B path serves a load-time FP8 base with the
+fine-tuned LoRA adapter attached at runtime:
 
-    uv run python scripts/hero_fp8.py --model /home/likhi/inferd/merged/9b --max-tokens 128
+    uv run python scripts/hero_fp8.py \
+      --model /home/likhi/inferd/weights/Qwen3.6-27B \
+      --adapter /home/likhi/inferd/adapters/27b \
+      --variants fp8 --max-tokens 64
 """
 
 from __future__ import annotations
@@ -70,14 +72,14 @@ def _single_stream(runner: ModelRunner, prompt: str, max_tokens: int, seed: int)
     return text, n, decode_tps, ttft_s
 
 
-def _measure(model: str, quantize: str | None, prompts: list[str],
+def _measure(model: str, adapter: str | None, quantize: str | None, prompts: list[str],
              max_tokens: int, seed: int, device: str) -> dict:
     torch.cuda.empty_cache()
     torch.cuda.reset_peak_memory_stats()
     label = quantize or "bf16"
     print(f"\n[hero] loading {label} ...")
     t = time.perf_counter()
-    runner = ModelRunner.load_target(model, device=device, quantize=quantize)
+    runner = ModelRunner.load_target(model, device=device, quantize=quantize, adapter=adapter)
     load_s = time.perf_counter() - t
     footprint_mb = torch.cuda.memory_allocated() / 1024**2
     print(f"[hero] {label} loaded in {load_s:.1f}s · weight footprint {footprint_mb:.0f} MiB")
@@ -110,28 +112,46 @@ def _measure(model: str, quantize: str | None, prompts: list[str],
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--model", default="/home/likhi/inferd/merged/9b")
+    ap.add_argument("--adapter", default=None, help="Optional LoRA adapter dir.")
     ap.add_argument("--max-tokens", type=int, default=128, dest="max_tokens")
     ap.add_argument("--n-prompts", type=int, default=4, dest="n_prompts")
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--device", default="cuda:0")
+    ap.add_argument(
+        "--variants",
+        default="bf16,fp8,fp8-dynamic",
+        help="Comma-separated variants: bf16,fp8,fp8-dynamic.",
+    )
     ap.add_argument("--results-dir", default=None, dest="results_dir")
     a = ap.parse_args(argv)
 
     prompts = PROMPTS[: a.n_prompts]
+    is_27b_adapter = "Qwen3.6-27B" in a.model and a.adapter is not None
     out = {
         "demo": "fp8_hero",
         "model": a.model,
-        "note": ("FP8 9B hero fallback: no fine-tuned 27B exists on this box; "
-                 "same code path serves merged/27b via --model."),
+        "adapter": a.adapter,
+        "note": (
+            "Fine-tuned 27B FP8 path: load-time FP8 base with LoRA adapter attached; "
+            "full bf16 merge is avoided because it does not fit local RAM/VRAM."
+            if is_27b_adapter else
+            "FP8 hero path; pass --adapter adapters/27b with weights/Qwen3.6-27B "
+            "for the fine-tuned 27B run."
+        ),
         "env": env_stamp(a.seed, workload_hash(GREEDY, a.max_tokens)),
         "max_tokens": a.max_tokens,
         "variants": {},
     }
 
-    variants = [("bf16", None), ("fp8", "fp8"), ("fp8-dynamic", "fp8-dynamic")]
+    variant_map = {"bf16": None, "fp8": "fp8", "fp8-dynamic": "fp8-dynamic"}
+    variants = [(name, variant_map[name]) for name in a.variants.split(",") if name in variant_map]
+    if not variants:
+        raise ValueError("--variants must include at least one of: bf16,fp8,fp8-dynamic")
     for label, quant in variants:
         try:
-            out["variants"][label] = _measure(a.model, quant, prompts, a.max_tokens, a.seed, a.device)
+            out["variants"][label] = _measure(
+                a.model, a.adapter, quant, prompts, a.max_tokens, a.seed, a.device
+            )
         except Exception as exc:  # FP8 kernel/path immaturity on Blackwell — surface, don't fake.
             import traceback
             out["variants"][label] = {"error": f"{type(exc).__name__}: {exc}",
@@ -139,9 +159,10 @@ def main(argv=None) -> int:
             print(f"\n[hero] {label} path failed: {exc}")
 
     # summary — each FP8 recipe vs bf16
-    bf16 = out["variants"]["bf16"]
+    bf16 = out["variants"].get("bf16")
     out["summary"] = {}
-    print("\n" + "=" * 70 + "\n[hero] FP8 9B HERO SUMMARY (single-stream, through the engine)\n" + "=" * 70)
+    title = "FP8 27B HERO SUMMARY" if is_27b_adapter else "FP8 HERO SUMMARY"
+    print("\n" + "=" * 70 + f"\n[hero] {title} (single-stream, through the engine)\n" + "=" * 70)
     print(f"  {'variant':<14}{'tok/s':>9}{'footprint':>12}{'peak(torch)':>13}")
     for label, _ in variants:
         v = out["variants"][label]
@@ -150,7 +171,7 @@ def main(argv=None) -> int:
             continue
         print(f"  {label:<14}{v['mean_decode_tok_s']:>9.1f}"
               f"{v['weight_footprint_mb']:>10.0f}MB{v['peak_vram_torch_mb']:>11.0f}MB")
-        if label != "bf16":
+        if label != "bf16" and bf16 and "error" not in bf16:
             out["summary"][label] = {
                 "decode_speedup": v["mean_decode_tok_s"] / bf16["mean_decode_tok_s"],
                 "footprint_ratio": v["weight_footprint_mb"] / bf16["weight_footprint_mb"],
@@ -159,13 +180,14 @@ def main(argv=None) -> int:
         print(f"  --> {label}: {s['decode_speedup']:.2f}x decode speed · "
               f"{s['footprint_ratio']:.2f}x weight footprint vs bf16")
     print("\n[hero] coherence spot-check (prompt 0):")
-    print(f"  bf16: {bf16['runs'][0]['sample'][:150]!r}")
-    for label, _ in variants[1:]:
+    if bf16 and "error" not in bf16:
+        print(f"  bf16: {bf16['runs'][0]['sample'][:150]!r}")
+    for label, _ in variants:
         v = out["variants"][label]
-        if "error" not in v:
+        if label != "bf16" and "error" not in v:
             print(f"  {label}: {v['runs'][0]['sample'][:150]!r}")
     # 27B projection: FP8 weight-only would let the 27B fit on a 32GB card.
-    if "fp8" in out["summary"]:
+    if "fp8" in out["summary"] and bf16:
         bf16_27b = bf16["weight_footprint_mb"] * 27 / 9 / 1024
         fp8_27b = bf16_27b * out["summary"]["fp8"]["footprint_ratio"]
         out["projection_27b_gb"] = {"bf16": bf16_27b, "fp8": fp8_27b, "card_gb": 31.8}
@@ -174,7 +196,8 @@ def main(argv=None) -> int:
 
     results_dir = Path(a.results_dir) if a.results_dir else Path(__file__).parent.parent / "bench" / "results"
     ts = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
-    d = results_dir / f"{ts}_fp8_9b_hero"
+    suffix = "fp8_27b_hero" if is_27b_adapter else "fp8_hero"
+    d = results_dir / f"{ts}_{suffix}"
     d.mkdir(parents=True, exist_ok=True)
     (d / "result.json").write_text(json.dumps(out, indent=2))
     print(f"\n[hero] result written to {d / 'result.json'}")

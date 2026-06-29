@@ -307,3 +307,28 @@ after load) is the trustworthy memory number.
 - **Impact:** The 27B fine-tuned adapter now exists again locally. The remaining
   Phase-10 GPU work is not another QLoRA run; it is the safe 27B merge/FP8 path
   that avoids materializing a full bf16 27B model in RAM/VRAM.
+
+## 2026-06-29 — Phase 10 27B FP8 hero: fits, but only as a capacity proof
+
+- **Path used:** `weights/Qwen3.6-27B` loaded with Transformers `TorchAoConfig`
+  + torchao `Float8WeightOnlyConfig`, then `adapters/27b` attached with PEFT.
+- **Why not merged bf16 first:** the local machine has ~32 GB VRAM and ~30 GB RAM;
+  materializing a merged 27B bf16 model needs ~54 GB and was already proven OOM.
+  Load-time FP8 plus runtime LoRA avoids creating that full bf16 artifact.
+- **Served through:** `scripts/hero_fp8.py` -> `ModelRunner.load_target(...,
+  quantize="fp8", adapter="adapters/27b")` -> `ContinuousBatchScheduler`.
+- **Measured command:** `HF_HUB_OFFLINE=1 uv run python scripts/hero_fp8.py
+  --model /home/likhi/inferd/weights/Qwen3.6-27B --adapter
+  /home/likhi/inferd/adapters/27b --variants fp8 --n-prompts 1 --max-tokens 16`.
+- **Result file:** `bench/results/20260629T071918Z_fp8_27b_hero/result.json`.
+- **Load time / footprint:** loaded in `143.4s`; model footprint `28,857 MiB`.
+- **Runtime memory:** `nvidia-smi` peak `32,065 MiB` on a `32,607 MiB` card
+  during generation, leaving only ~`123 MiB` free at the observed moment. This
+  is too tight for longer context, batching, or dashboard-side experiments.
+- **Decode / TTFT:** `0.121 tok/s`, TTFT `9.35s` for the short prompt. The
+  output was coherent but repetitive (`Paris...` continuation).
+- **Decision:** Count Phase 10 as a local capacity proof that the fine-tuned 27B
+  can be served through the engine under FP8+LoRA on the RTX 5090. Do **not**
+  present it as a practical latency win or as a true merged-FP8 artifact; the
+  honest next step would be a larger-memory machine or a streaming merge/quant
+  exporter that writes a standalone FP8 checkpoint without ever holding bf16 27B.

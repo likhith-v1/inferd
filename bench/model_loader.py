@@ -38,15 +38,14 @@ def _strip_vision(container) -> list[str]:
     return stripped
 
 
-def _quantize_fp8(lm, recipe: str = "fp8") -> None:
+def _torchao_quant_config(recipe: str = "fp8"):
     """
-    In-place FP8 quantization of the transformer's nn.Linear weights (phase 10).
+    Load-time FP8 quantization config for the transformer's nn.Linear weights.
 
     Two recipes (e4m3 weights), both on the RTX 5090's (sm_120) FP8 hardware:
       - "fp8"  weight-only FP8 — halves the weight bytes read from HBM each step.
-        Single-token decode is memory-bandwidth-bound on weight loads, so this is
-        the right recipe for the single-stream hero (memory win *and* faster
-        decode).
+        Single-token decode is memory-bandwidth-bound on weight loads. On the
+        current torchao/Blackwell stack this is a capacity win, not a latency win.
       - "fp8-dynamic" W8A8 dynamic-activation FP8 — routes matmuls through
         `_scaled_mm` FP8 tensor cores; wins at compute-bound prefill / large
         batch, but the per-step activation-quant overhead hurts M=1 decode.
@@ -55,17 +54,17 @@ def _quantize_fp8(lm, recipe: str = "fp8") -> None:
     quality for negligible memory). FP8 is the project's one quantization
     exception, scoped to this hero path only.
     """
-    from torchao.quantization import quantize_
+    from transformers import TorchAoConfig
 
     if recipe == "fp8":
         from torchao.quantization import Float8WeightOnlyConfig
-        quantize_(lm, Float8WeightOnlyConfig())
+        config = Float8WeightOnlyConfig()
     elif recipe == "fp8-dynamic":
         from torchao.quantization import Float8DynamicActivationFloat8WeightConfig
-        quantize_(lm, Float8DynamicActivationFloat8WeightConfig())
+        config = Float8DynamicActivationFloat8WeightConfig()
     else:
         raise ValueError(f"unknown fp8 recipe {recipe!r}")
-    torch.cuda.empty_cache()
+    return TorchAoConfig(config, modules_to_not_convert=["lm_head"])
 
 
 def load(
@@ -74,24 +73,42 @@ def load(
     device: str = "cuda:0",
     dtype: torch.dtype = torch.bfloat16,
     quantize: str | None = None,
+    adapter: str | Path | None = None,
 ) -> tuple:
     """
     Load text backbone from a Qwen3.5 multimodal checkpoint.
 
-    quantize="fp8" applies in-place W8A8 FP8 to the backbone Linears after the
-    vision tower is stripped (phase-10 hero path). Default (None) is unchanged.
+    quantize="fp8" applies load-time torchao FP8 to the backbone Linears
+    (phase-10 hero path). Default (None) is unchanged. adapter attaches a LoRA
+    adapter after base load; this avoids materializing a full 27B bf16 merge.
     """
     weights_dir = Path(weights_dir)
     if not weights_dir.exists():
         raise FileNotFoundError(f"Weights directory not found: {weights_dir}")
+    if quantize not in (None, "fp8", "fp8-dynamic"):
+        raise ValueError(f"unsupported quantize={quantize!r} (use 'fp8' or 'fp8-dynamic')")
 
     tokenizer = AutoTokenizer.from_pretrained(str(weights_dir))
+    quantization_config = _torchao_quant_config(quantize) if quantize else None
     model = AutoModelForMultimodalLM.from_pretrained(
         str(weights_dir),
         dtype=dtype,
         device_map=device,
+        quantization_config=quantization_config,
     )
+    if adapter is not None:
+        from peft import PeftModel
+
+        model = PeftModel.from_pretrained(
+            model,
+            str(adapter),
+            is_trainable=False,
+            low_cpu_mem_usage=True,
+        )
     model.eval()
+
+    if adapter is not None and hasattr(model, "base_model"):
+        model = model.base_model.model
 
     if hasattr(model, "model") and hasattr(model.model, "language_model"):
         lm = model.model.language_model
@@ -106,9 +123,5 @@ def load(
         lm = model
         lm_head = None
 
-    if quantize in ("fp8", "fp8-dynamic"):
-        _quantize_fp8(lm, recipe=quantize)
-    elif quantize is not None:
-        raise ValueError(f"unsupported quantize={quantize!r} (use 'fp8' or 'fp8-dynamic')")
-
+    torch.cuda.empty_cache()
     return lm, lm_head, tokenizer

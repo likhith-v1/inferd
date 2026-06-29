@@ -32,11 +32,15 @@ class ModelRunner:
         device: str = "cuda:0",
         dtype: torch.dtype = torch.bfloat16,
         quantize: str | None = None,
+        adapter: Optional[str | Path] = None,
     ) -> "ModelRunner":
-        """Load the text backbone. quantize="fp8" enables the phase-10 FP8 hero
-        path (W8A8 dynamic FP8 on the backbone Linears); default is bf16."""
+        """Load the text backbone.
+
+        quantize="fp8" enables the phase-10 FP8 hero path. adapter attaches a
+        LoRA adapter without materializing a full merged 27B bf16 checkpoint.
+        """
         lm, lm_head, tokenizer = load(
-            Path(path), device=device, dtype=dtype, quantize=quantize
+            Path(path), device=device, dtype=dtype, quantize=quantize, adapter=adapter
         )
         return cls(lm, lm_head, tokenizer, device=device)
 
