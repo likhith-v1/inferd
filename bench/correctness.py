@@ -1,22 +1,8 @@
-"""
-bench.correctness — the speculative-decoding correctness gate (phase 04).
+"""Speculative-decoding distribution-equivalence gate.
 
-Statistically checks that speculative decoding produces the same token
-distribution as direct sampling from the target. This is the differentiator: no
-speedup claim is valid until this passes.
-
-Method (self-calibrating, no magic threshold):
-  For each fixed prefix, draw `n` next-token samples two ways —
-    (a) spec-decode: one speculative round, take the FIRST committed token;
-    (b) direct: nucleus-sample the target's next-token distribution.
-  Build empirical histograms over the vocab and compute the Total-Variation
-  distance TV(spec, direct). Compare it to a BOOTSTRAPPED NULL: many TV values
-  between two independent direct-vs-direct samples of the same size n. The spec
-  distribution passes if its TV lies within the null's 99th percentile (i.e. it
-  is statistically indistinguishable from resampling the target itself), and a
-  χ² goodness-of-fit gives p > 0.05.
-
-Phase 09 extends this file (append-only); do not rewrite existing functions.
+Default seq mode samples multi-token continuations from direct target decoding
+and speculative decoding, then checks per-position TV distance against a
+bootstrapped direct-vs-direct null. First-token mode is kept for quick checks.
 """
 
 from __future__ import annotations

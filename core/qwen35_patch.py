@@ -1,31 +1,8 @@
-"""
-core.qwen35_patch — enable correct MULTI-TOKEN cache continuation for Qwen3.5's
-GatedDeltaNet linear-attention layers (required for speculative decoding).
+"""Patch Qwen3.5 GatedDeltaNet for multi-token cache continuation.
 
-Why this exists
----------------
-Qwen3.5 is a hybrid model: some layers are full attention (croppable KV cache),
-others are GatedDeltaNet linear attention with a fixed-size recurrent state. The
-stock `Qwen3_5GatedDeltaNet.forward` only continues that recurrent state when
-`seq_len == 1` (single-step decode). For any `seq_len > 1` from a populated cache
-it takes the prefill path — `initial_state=None` and conv state rebuilt from
-scratch — which SILENTLY RESTARTS the recurrence and yields wrong logits.
-
-Empirically (0.8B draft, 3-token block): multi-token-from-cache vs full-prefill
-ground truth gave max|Δlogit| = 18.0, argmax match 0.67. Token-by-token (the
-single-step path) gave 0.22 (bf16 noise), argmax 1.00.
-
-Speculative decoding needs exactly this broken capability: verify γ proposed
-tokens in ONE parallel pass continuing from the committed-prefix cache, and
-replay accepted tokens after a snapshot/restore. So we patch the forward to add a
-THIRD branch — "continuation, seq_len > 1" — that continues the conv state via the
-torch reference update and runs the recurrence through the CUDA
-`chunk_gated_delta_rule` with `initial_state=recurrent_state` (the kernel already
-supports an initial state; HF just hardcodes None). The fast single-step decode
-and prefill paths are left untouched.
-
-The patch is validated against the token-by-token ground truth in
-core.spec_decode-adjacent tests; install it once before loading any model.
+Stock Qwen3.5 only continues linear-attention recurrent state for single-token
+decode. Speculative verification needs `seq_len > 1` continuation from cache, so
+this adds that branch while leaving prefill and single-step decode untouched.
 """
 
 from __future__ import annotations
@@ -54,7 +31,7 @@ def _patched_gdn_forward(
         and cache_position is not None
     )
     single_step = has_prev and seq_len == 1
-    multi_continue = has_prev and seq_len > 1   # the NEW path
+    multi_continue = has_prev and seq_len > 1
 
     if cache_params is not None:
         conv_state = cache_params.conv_states[self.layer_idx]
@@ -68,15 +45,12 @@ def _patched_gdn_forward(
     b = self.in_proj_b(hidden_states)
     a = self.in_proj_a(hidden_states)
 
-    # --- causal conv ------------------------------------------------------
     if single_step:
         mixed_qkv = self.causal_conv1d_update(
             mixed_qkv, conv_state,
             self.conv1d.weight.squeeze(1), self.conv1d.bias, self.activation,
         )
     elif multi_continue:
-        # torch reference update correctly continues conv state for any seq_len
-        # (cats conv_state, convolves, writes back the trailing window in place).
         mixed_qkv = _q5.torch_causal_conv1d_update(
             mixed_qkv, conv_state,
             self.conv1d.weight.squeeze(1), self.conv1d.bias, self.activation,
@@ -107,7 +81,6 @@ def _patched_gdn_forward(
         query = query.repeat_interleave(self.num_v_heads // self.num_k_heads, dim=2)
         key = key.repeat_interleave(self.num_v_heads // self.num_k_heads, dim=2)
 
-    # --- gated delta rule -------------------------------------------------
     if single_step:
         core_attn_out, last_recurrent_state = self.recurrent_gated_delta_rule(
             query, key, value, g=g, beta=beta,
@@ -115,9 +88,6 @@ def _patched_gdn_forward(
             use_qk_l2norm_in_kernel=True,
         )
     elif multi_continue:
-        # Parallel verify: the (CUDA) chunked kernel accepts an initial_state, so
-        # it continues correctly from the cached recurrent state for seq_len > 1.
-        # Validated vs full-prefill ground truth: max|Δ| 0.22 (bf16), argmax 1.00.
         core_attn_out, last_recurrent_state = self.chunk_gated_delta_rule(
             query, key, value, g=g, beta=beta,
             initial_state=recurrent_state, output_final_state=True,

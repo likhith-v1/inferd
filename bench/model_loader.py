@@ -1,8 +1,4 @@
-"""
-bench.model_loader — load Qwen3.5 text backbone (vision stripped).
-
-Returns (lm, lm_head, tokenizer). Used by ModelRunner and bench runners.
-"""
+"""Load Qwen text backbones with vision stripped."""
 
 from __future__ import annotations
 
@@ -39,21 +35,7 @@ def _strip_vision(container) -> list[str]:
 
 
 def _torchao_quant_config(recipe: str = "fp8"):
-    """
-    Load-time FP8 quantization config for the transformer's nn.Linear weights.
-
-    Two recipes (e4m3 weights), both on the RTX 5090's (sm_120) FP8 hardware:
-      - "fp8"  weight-only FP8 — halves the weight bytes read from HBM each step.
-        Single-token decode is memory-bandwidth-bound on weight loads. On the
-        current torchao/Blackwell stack this is a capacity win, not a latency win.
-      - "fp8-dynamic" W8A8 dynamic-activation FP8 — routes matmuls through
-        `_scaled_mm` FP8 tensor cores; wins at compute-bound prefill / large
-        batch, but the per-step activation-quant overhead hurts M=1 decode.
-
-    The lm_head stays bf16 (one large vocab projection — quantizing it dents
-    quality for negligible memory). FP8 is the project's one quantization
-    exception, scoped to this hero path only.
-    """
+    """Build a load-time torchao FP8 config; keep lm_head bf16."""
     from transformers import TorchAoConfig
 
     if recipe == "fp8":
@@ -75,13 +57,7 @@ def load(
     quantize: str | None = None,
     adapter: str | Path | None = None,
 ) -> tuple:
-    """
-    Load text backbone from a Qwen3.5 multimodal checkpoint.
-
-    quantize="fp8" applies load-time torchao FP8 to the backbone Linears
-    (phase-10 hero path). Default (None) is unchanged. adapter attaches a LoRA
-    adapter after base load; this avoids materializing a full 27B bf16 merge.
-    """
+    """Load text backbone, optionally with FP8 quantization and a LoRA adapter."""
     weights_dir = Path(weights_dir)
     if not weights_dir.exists():
         raise FileNotFoundError(f"Weights directory not found: {weights_dir}")

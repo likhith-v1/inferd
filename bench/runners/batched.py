@@ -209,15 +209,11 @@ def run(
         max_tokens=max_tokens,
         env=env_stamp(seed, workload_hash(profile, max_tokens)),
         notes=[
-            "Continuous batching: FCFS admission, one BATCHED decode forward per iteration over "
-            "the running set (per-seq caches stacked, full-attn KV left-padded, linear states cat'd).",
-            "Batched decode is numerically equivalent to single-stream (bench.batched_equiv, "
-            "max|Δlogit| at the bf16 floor).",
-            f"Fixed pool of {total_requests} requests processed at each batch width; surplus waits "
-            "so continuous backfill (vs static-cohort drain) is exercised when concurrency < total.",
-            "Block budget is admission accounting over the phase-05 paged free-block model; actual KV "
-            "still lives in ModelRunner/HF caches (no persistent paged runtime cache yet).",
-            "Speculative decoding is measured separately; phase 06 does not implement batched accept/replay.",
+            "FCFS continuous batching with one batched decode forward per iteration.",
+            "Batched decode equivalence is covered by bench.batched_equiv.",
+            f"Fixed pool of {total_requests} requests at each batch width.",
+            "Paged blocks are admission accounting; runtime KV still uses HF caches.",
+            "Batched speculative decoding is not implemented.",
         ],
     )
 

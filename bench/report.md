@@ -67,7 +67,7 @@
 
 **✅ PASS** — multi-token per-position TV test, n=1500, length=6, gamma=4.
 
-Spec-decode output is statistically indistinguishable from direct target sampling: per-position TV distance falls within the bootstrapped direct-vs-direct null (99th pctile). This proves the rejection-sampling accept rule + residual resampling are exact.
+Spec-decode passed the distribution-equivalence gate: per-position TV distance fell within the bootstrapped direct-vs-direct null (99th pctile). This is statistical evidence for the accept rule and residual resampling implementation.
 
 ```
 [correctness] prompt[2] pos[0] TV=0.0000 null_p99=0.0000 -> PASS

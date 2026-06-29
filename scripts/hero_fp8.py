@@ -1,15 +1,8 @@
-"""
-scripts/hero_fp8.py — the FP8 hero demo (phase 10).
+"""FP8 hero runner.
 
-Serves the model single-stream through *our own* continuous-batching engine in
-bf16 and FP8 (RTX 5090 sm_120 FP8 tensor cores) — and
-reports the closing-shot numbers: decode tokens/sec, TTFT, model VRAM footprint,
-peak VRAM, and a coherence spot-check (same prompt, both precisions, side by
-side). FP8 is the project's one quantization exception, scoped to this path.
-
-The intended hero is the fine-tuned 27B. On a 32 GB card we cannot materialize
-the merged 27B in bf16, so the 27B path serves a load-time FP8 base with the
-fine-tuned LoRA adapter attached at runtime:
+Runs a single-stream generation through the normal scheduler and records load
+time, TTFT, decode speed, VRAM, and a short output sample. The 27B path uses
+load-time FP8 plus the LoRA adapter because a merged bf16 27B does not fit here:
 
     uv run python scripts/hero_fp8.py \
       --model /home/likhi/inferd/weights/Qwen3.6-27B \
@@ -40,7 +33,7 @@ from core.scheduler import (  # noqa: E402
 
 
 def _single_stream(runner: ModelRunner, prompt: str, max_tokens: int, seed: int):
-    """One request, single-stream, through the engine. Returns (text, n_tokens, decode_tps, ttft_s)."""
+    """Run one request through the scheduler."""
     backend = ModelRunnerBackend(runner)
     sched = ContinuousBatchScheduler(
         backend,
@@ -51,7 +44,7 @@ def _single_stream(runner: ModelRunner, prompt: str, max_tokens: int, seed: int)
     )
     ids = runner.tokenizer(prompt, return_tensors="pt").input_ids[0].tolist()
 
-    # TTFT proxy: prefill cost (prompt -> first-token logits) through the backend.
+    # TTFT proxy: prompt prefill cost.
     torch.cuda.synchronize()
     t = time.perf_counter()
     backend.prefill(ids)
@@ -84,7 +77,6 @@ def _measure(model: str, adapter: str | None, quantize: str | None, prompts: lis
     footprint_mb = torch.cuda.memory_allocated() / 1024**2
     print(f"[hero] {label} loaded in {load_s:.1f}s · weight footprint {footprint_mb:.0f} MiB")
 
-    # warmup
     _single_stream(runner, prompts[0], max_tokens=8, seed=seed)
 
     rows = []
@@ -152,13 +144,12 @@ def main(argv=None) -> int:
             out["variants"][label] = _measure(
                 a.model, a.adapter, quant, prompts, a.max_tokens, a.seed, a.device
             )
-        except Exception as exc:  # FP8 kernel/path immaturity on Blackwell — surface, don't fake.
+        except Exception as exc:
             import traceback
             out["variants"][label] = {"error": f"{type(exc).__name__}: {exc}",
                                       "traceback": traceback.format_exc()}
             print(f"\n[hero] {label} path failed: {exc}")
 
-    # summary — each FP8 recipe vs bf16
     bf16 = out["variants"].get("bf16")
     out["summary"] = {}
     title = "FP8 27B HERO SUMMARY" if is_27b_adapter else "FP8 HERO SUMMARY"
@@ -186,13 +177,12 @@ def main(argv=None) -> int:
         v = out["variants"][label]
         if label != "bf16" and "error" not in v:
             print(f"  {label}: {v['runs'][0]['sample'][:150]!r}")
-    # 27B projection: FP8 weight-only would let the 27B fit on a 32GB card.
-    if "fp8" in out["summary"] and bf16:
+    if "fp8" in out["summary"] and bf16 and not is_27b_adapter:
         bf16_27b = bf16["weight_footprint_mb"] * 27 / 9 / 1024
         fp8_27b = bf16_27b * out["summary"]["fp8"]["footprint_ratio"]
         out["projection_27b_gb"] = {"bf16": bf16_27b, "fp8": fp8_27b, "card_gb": 31.8}
-        print(f"\n[hero] 27B projection: bf16 ≈ {bf16_27b:.1f} GB (will NOT fit) · "
-              f"FP8 ≈ {fp8_27b:.1f} GB (fits the 32 GB 5090) — the reason FP8 is scoped to the 27B.")
+        print(f"\n[hero] 9B fallback estimate: 27B bf16 ≈ {bf16_27b:.1f} GB; "
+              f"27B FP8 ≈ {fp8_27b:.1f} GB.")
 
     results_dir = Path(a.results_dir) if a.results_dir else Path(__file__).parent.parent / "bench" / "results"
     ts = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())

@@ -1,6 +1,6 @@
 # inferd
 
-> **Work in progress.** This repository is under active development. APIs, benchmarks, and documentation may change without notice. Several planned components (`serve/`, `dashboard/`, FP8 hero demo) are not implemented yet. Treat numbers in `bench/results/` as snapshots from specific runs, not final portfolio claims. See [Current status](#current-status) for what exists today.
+> **Work in progress.** Dashboard and final docs are still in progress. Treat numbers in `bench/results/` as run snapshots, not final portfolio claims. See [Current status](#current-status).
 
 A from-scratch local LLM inference stack: **QLoRA fine-tuning → speculative decoding → paged KV-cache → continuous batching**, served via FastAPI with a React metrics dashboard. Benchmarked against a naive Hugging Face baseline and vLLM as the reference ceiling. Runs fully offline on a single RTX 5090 — no cloud APIs, no external inference dependencies.
 
@@ -15,7 +15,7 @@ The thesis is depth on both ends: fine-tune a showcase model *and* serve it thro
 | **Fine-tuning** | QLoRA SFT of a 27B showpiece + 9B engine target; draft distillation for acceptance-rate lift | Implemented (`finetune/`) |
 | **Inference core** | Exact speculative decoding, paged KV-cache, iteration-level continuous batching | Implemented (`core/`) |
 | **Benchmarking** | Headless harness, distribution-equivalence test, throughput-vs-concurrency curves | Implemented (`bench/`) |
-| **Serving** | FastAPI async queue, SSE token streaming, `/metrics` and `/healthz` | Planned (phase 07) |
+| **Serving** | FastAPI async queue, SSE token streaming, `/metrics` and `/healthz` | Implemented (`serve/`) |
 | **Dashboard** | Live tokens/sec, TTFT, draft acceptance rate α, VRAM, concurrency | Planned (phase 08) |
 
 ---
@@ -52,7 +52,7 @@ Weights, adapters, merged checkpoints, and datasets are gitignored and live unde
 ```mermaid
 flowchart TB
     dash["Dashboard<br/>React + Vite · planned<br/>tokens/sec · TTFT · α · VRAM"]
-    serve["Serving<br/>FastAPI + SSE · planned<br/>queue · scheduler · streaming"]
+    serve["Serving<br/>FastAPI + SSE<br/>queue · scheduler · streaming"]
     core["Inference core · live<br/>spec decode · paged KV · batching<br/>model runner (target + draft, bf16)"]
     ft["Fine-tuning · live<br/>Unsloth QLoRA · golden eval · export · draft KD"]
 
@@ -64,7 +64,7 @@ flowchart TB
 | Layer | Package | Status |
 |-------|---------|--------|
 | Dashboard | `dashboard/` | Planned |
-| Serving | `serve/` | Planned |
+| Serving | `serve/` | Live |
 | Inference core | `core/` | Live |
 | Fine-tuning | `finetune/` | Live |
 | Benchmarks | `bench/` | Live (headless; no HTTP required) |
@@ -105,7 +105,7 @@ inferd/
 └── uv.lock                 # Pinned dependency lockfile
 ```
 
-Planned but not yet present: `serve/`, `dashboard/`, `bench/run_all.py`.
+Planned but not yet present: `dashboard/`.
 
 `core/model_runner.py` is the shared hot file — phases extend it via new methods; callers treat `kv` as an opaque handle.
 
@@ -151,7 +151,7 @@ if all γ accepted:
 |------|---------|
 | Fine-tuning | Unsloth first; Axolotl / Llama-Factory / ms-swift / TRL+PEFT as fallbacks. bitsandbytes 4-bit NF4. **No GemForge.** |
 | Core | Python, PyTorch (Blackwell CUDA 12.8+), Triton (paged attention), Hugging Face Transformers |
-| Serving | FastAPI + uvicorn, async queue, SSE streaming *(planned)* |
+| Serving | FastAPI + uvicorn, async queue, SSE streaming |
 | Dashboard | React + Vite, Recharts/uPlot *(planned)* |
 | Environment | WSL2 Ubuntu, `uv` lockfile, everything pinned |
 | Reference | vLLM (ceiling only) |
@@ -181,7 +181,7 @@ The dashboard and final portfolio/docs pass are still ahead.
 
 ### Early results (preliminary)
 
-These are honest snapshots from `bench/results/` — not final headline numbers.
+Snapshots from `bench/results/`:
 
 | Experiment | Result | Notes |
 |------------|--------|-------|
@@ -190,8 +190,9 @@ These are honest snapshots from `bench/results/` — not final headline numbers.
 | Draft distillation α-lift | Modest lift at γ=8 (+0.08 α); throughput unchanged | Replay tax dominates, not α |
 | Continuous batching (9B) | **~35 → 123 → 199 tok/s** at c=1/4/8 | Real batched decode; `DECISIONS.md` 2026-06-28 |
 | Paged KV equivalence | max\|Δlogit\| = 0 on model-level compute gate | Reference path; no Triton kernel yet |
+| 27B FP8 hero | Fits at **28.9 GiB** footprint; **0.121 tok/s** | Capacity proof, not a latency win |
 
-**Known gaps:** no persistent paged runtime cache (KV still in HF caches during generation); batched speculative decoding not implemented; vLLM ceiling runner is best-effort and may defer on sm_120.
+**Known gaps:** no persistent paged runtime cache; no batched speculative decoding; vLLM ceiling may defer on sm_120.
 
 ---
 
