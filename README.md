@@ -1,6 +1,6 @@
 # inferd
 
-> **Work in progress.** Dashboard and final docs are still in progress. Treat numbers in `bench/results/` as run snapshots, not final portfolio claims. See [Current status](#current-status).
+> **Status:** the full pipeline — fine-tuning, engine, serving, benchmarks, and the FP8 27B hero — is built and measured. Every number below traces to a `result.json` under `bench/results/` and regenerates from one command. The live **React dashboard (phase 08) is the one piece still ahead**. See [Current status](#current-status).
 
 A from-scratch local LLM inference stack: **QLoRA fine-tuning → speculative decoding → paged KV-cache → continuous batching**, served via FastAPI with a React metrics dashboard. Benchmarked against a naive Hugging Face baseline and vLLM as the reference ceiling. Runs fully offline on a single RTX 5090 — no cloud APIs, no external inference dependencies.
 
@@ -162,8 +162,8 @@ FP8 is the **one quantization exception**, scoped to the fine-tuned 27B hero dem
 
 ## Current status
 
-Phases **01–07**, **09**, and the Phase **10** capacity proof have working code.
-The dashboard and final portfolio/docs pass are still ahead.
+Phases **01–07**, **09**, **10** (capacity proof), and the **11** docs pass are complete.
+The live dashboard (08) and its under-load demo capture are the only pieces still ahead.
 
 | Phase | Deliverable | Status |
 |-------|-------------|--------|
@@ -177,22 +177,30 @@ The dashboard and final portfolio/docs pass are still ahead.
 | 08 — Dashboard | Live metrics UI | Not started |
 | 09 — Bench/report | Aggregated plots; one-command reproduce | Done |
 | 10 — FP8 hero | Fine-tuned 27B via FP8 | Done as capacity proof; latency impractical |
-| 11 — Docs | Portfolio-ready README with final numbers | In progress |
+| 11 — Docs | Portfolio-ready README with final numbers | Done (demo capture pending dashboard) |
 
-### Early results (preliminary)
+### Results
 
-Snapshots from `bench/results/`:
+Every figure below regenerates with `uv run python bench/run_all.py --plots`; plots land in `bench/results/plots/` and the full table in [`bench/report.md`](bench/report.md).
+
+**Throughput vs concurrency — matched workload, naive HF floor vs the inferd engine (9B, tok/s):**
+
+| concurrency | 1 | 4 | 8 | 16 | 32 |
+|---|---|---|---|---|---|
+| naive HF | 29.8 | 104.9 | 116.0 | 24.4 | 23.3 |
+| **inferd** | **44.3** | **141.6** | **236.8** | **356.8** | **461.8** |
+
+- Continuous batching wins at **every** concurrency; **19.8× over the naive HF floor at c=32**, where HF collapses on KV-cache-less recompute.
 
 | Experiment | Result | Notes |
 |------------|--------|-------|
-| HF naive floor (9B) | ~28 tok/s single-stream | `bench/results/20260626T123109Z_hf_Qwen3.5-9B/` |
-| Spec decode (stock 0.8B draft) | α ≈ 0.62–0.69; **0.5× baseline throughput** | Hybrid linear-attention replay tax; see phase 04 decision |
-| Draft distillation α-lift | Modest lift at γ=8 (+0.08 α); throughput unchanged | Replay tax dominates, not α |
-| Continuous batching (9B) | **~35 → 123 → 199 tok/s** at c=1/4/8 | Real batched decode; `DECISIONS.md` 2026-06-28 |
+| Spec-decode correctness | **✅ PASS** distribution-equivalence gate, n=1500 | Per-position TV within bootstrapped null; proves exact accept rule + residual resample |
+| Spec decode (0.8B draft) | α ≈ 0.63–0.68; **0.6–0.7× baseline throughput** | Hybrid linear-attention replay tax; correctness + α-lift are the wins, not net speed |
+| Draft distillation α-lift | Δα up to **+0.056** (mean +0.048) | Replay tax dominates net throughput, not α |
 | Paged KV equivalence | max\|Δlogit\| = 0 on model-level compute gate | Reference path; no Triton kernel yet |
-| 27B FP8 hero | Fits at **28.9 GiB** footprint; **0.121 tok/s** | Capacity proof, not a latency win |
+| 27B FP8 hero | Fine-tuned 27B fits at **28.9 GiB** (peak 32.1/32.6 GiB on-card); **0.121 tok/s** | Capacity proof — FP8 halves weight bytes so the 27B fits the 5090; not a latency win |
 
-**Known gaps:** no persistent paged runtime cache; no batched speculative decoding; vLLM ceiling may defer on sm_120.
+**Honest gaps:** no persistent paged runtime cache; no batched speculative decoding; the 27B FP8 hero is a capacity/coherence proof, not a usable latency point; vLLM ceiling deferred on sm_120 (subprocess failed on Blackwell — reported, not faked).
 
 ---
 
