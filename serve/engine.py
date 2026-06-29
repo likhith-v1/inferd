@@ -101,6 +101,7 @@ class Engine:
         self._start_time = time.perf_counter()
         self._last_ttft_s: float | None = None
         self._rate_samples: deque[tuple[float, int]] = deque()
+        self._fatal: str | None = None  # set if the engine thread dies on an error
 
     # -- lifecycle ---------------------------------------------------------
 
@@ -162,17 +163,28 @@ class Engine:
     # -- the engine thread -------------------------------------------------
 
     def _run_loop(self) -> None:
-        while not self._stop.is_set():
-            self._drain_inbox()
-            snap = self.scheduler.metrics_snapshot()
-            if snap.active_sequences == 0 and snap.waiting_sequences == 0:
-                # nothing to do: sleep until woken by a submit/cancel or timeout
-                self._wake.wait(timeout=self._idle_poll_s)
-                self._wake.clear()
-                continue
-            self.scheduler.step()
-            self._emit_updates()
-        self._shutdown_channels()
+        try:
+            while not self._stop.is_set():
+                self._drain_inbox()
+                snap = self.scheduler.metrics_snapshot()
+                if snap.active_sequences == 0 and snap.waiting_sequences == 0:
+                    # nothing to do: sleep until woken by a submit/cancel or timeout
+                    self._wake.wait(timeout=self._idle_poll_s)
+                    self._wake.clear()
+                    continue
+                self.scheduler.step()
+                self._emit_updates()
+        except BaseException as exc:  # noqa: BLE001 — a dead loop must not silently hang clients
+            # An unhandled error (e.g. CUDA OOM in step()) would otherwise kill this
+            # daemon thread and leave every connected client blocked forever on its
+            # queue. Surface it instead: error the in-flight channels, record it for
+            # /healthz, and let `alive` go False so the server reports degraded.
+            self._fatal = f"{type(exc).__name__}: {exc}"
+            for channel in list(self._channels.values()):
+                channel.push(Error(f"engine crashed: {self._fatal}"))
+            self._channels.clear()
+        finally:
+            self._shutdown_channels()
 
     def _drain_inbox(self) -> None:
         while True:

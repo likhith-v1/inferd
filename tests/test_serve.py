@@ -13,8 +13,9 @@ import unittest
 
 from fastapi.testclient import TestClient
 
+from core.scheduler import SchedulerMetrics
 from serve.app import create_app
-from serve.engine import Done, Error, StreamChannel, TokenChunk
+from serve.engine import Done, Engine, Error, StreamChannel, TokenChunk
 from serve.schemas import MetricsResponse
 
 
@@ -142,6 +143,57 @@ class ServeTest(unittest.TestCase):
         self.assertEqual(body["status"], "ok")
         self.assertTrue(body["engine_alive"])
         self.assertEqual(body["model"], "fake-model")
+
+
+class _RaisingScheduler:
+    """Fake scheduler whose step() raises — to test engine-thread crash handling."""
+
+    def __init__(self):
+        self._has_work = False
+
+    def submit(self, prompt_ids, max_tokens, request_id):
+        self._has_work = True
+
+    def cancel(self, request_id):
+        return False
+
+    def get(self, request_id):
+        return None
+
+    def step(self):
+        raise RuntimeError("boom (simulated CUDA OOM)")
+
+    def metrics_snapshot(self):
+        n = 1 if self._has_work else 0
+        return SchedulerMetrics(
+            waiting_sequences=0, active_sequences=n, completed_sequences=0,
+            failed_sequences=0, admitted_sequences=0, evicted_sequences=0,
+            iterations=0, total_generated_tokens=0, used_blocks=0,
+            free_blocks=0, max_blocks_used=0,
+        )
+
+
+class EngineCrashTest(unittest.IsolatedAsyncioTestCase):
+    """A crash in the engine thread must error in-flight clients, not hang them."""
+
+    async def test_step_crash_errors_channel_and_marks_dead(self):
+        eng = Engine(
+            _RaisingScheduler(), tokenizer=None, model_name="m", device="cpu",
+            max_concurrent=4, max_queue_depth=8,
+        )
+        eng.start()
+        try:
+            channel = eng.submit([1, 2, 3], max_tokens=8)
+            self.assertIsNotNone(channel)
+            # The client must receive an Error (not block forever on queue.get()).
+            item = await asyncio.wait_for(channel.queue.get(), timeout=5)
+            self.assertIsInstance(item, Error)
+            self.assertIn("engine crashed", item.message)
+            await asyncio.sleep(0.05)  # let the thread finish unwinding
+            self.assertFalse(eng.alive)        # /healthz would report degraded
+            self.assertIsNotNone(eng._fatal)
+        finally:
+            eng.stop()
 
 
 if __name__ == "__main__":
