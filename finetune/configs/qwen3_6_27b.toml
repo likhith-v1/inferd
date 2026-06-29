@@ -25,6 +25,6 @@ num_train_epochs = 1
 warmup_steps = 50
 logging_steps = 10
 eval_steps = 250
-save_steps = 250
+save_steps = 50
 max_steps = -1
 seed = 0

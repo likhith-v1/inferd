@@ -289,3 +289,21 @@ weight-only FP8 GEMM (or running FP8 only where compute-bound) would recover it;
 (3) peak-VRAM via nvidia-smi is contaminated by torch's allocator cache across
 back-to-back loads — the in-process `weight_footprint_mb` (memory_allocated right
 after load) is the trustworthy memory number.
+
+## 2026-06-29 — 27B QLoRA adapter restored after crash rebuild
+
+- **Model:** `Qwen/Qwen3.6-27B`, loaded offline from `weights/Qwen3.6-27B`.
+- **Adapter path:** `adapters/27b`.
+- **Config:** `finetune/configs/qwen3_6_27b.toml`.
+- **Checkpoint cadence:** `save_steps = 50` so recovery points are roughly every
+  12-15 minutes on the RTX 5090.
+- **Training:** 20,000 examples, 1 epoch, 625 steps, batch size 1, gradient
+  accumulation 32, effective batch size 32.
+- **Final train loss:** `0.5025`.
+- **Final eval loss:** `0.4971`.
+- **Runtime:** `9,556s` (`2h39m16s`).
+- **Artifacts verified:** final adapter files plus checkpoints through
+  `checkpoint-600`; local adapter directory size is about `6.4G`.
+- **Impact:** The 27B fine-tuned adapter now exists again locally. The remaining
+  Phase-10 GPU work is not another QLoRA run; it is the safe 27B merge/FP8 path
+  that avoids materializing a full bf16 27B model in RAM/VRAM.
