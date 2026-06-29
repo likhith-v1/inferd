@@ -1,24 +1,4 @@
-"""
-serve.engine — the sync↔async bridge between FastAPI and the continuous-batching
-scheduler (phase 07).
-
-The scheduler (core.scheduler) is synchronous and step-driven with no streaming
-hooks: the only way to observe progress is to poll `get(request_id)` between
-`step()` calls. GPU forwards block. So serving runs a SINGLE background "engine
-thread" that exclusively owns the scheduler:
-
-  - HTTP `/generate` handlers (on the event loop) tokenize, call `Engine.submit`
-    (which posts a Submit command to a thread-safe inbox and returns a
-    `StreamChannel`), then `await` token chunks off the channel's asyncio.Queue.
-  - The engine thread drains the inbox (submit/cancel), calls `scheduler.step()`,
-    and pushes each running request's new token text to its channel via
-    `loop.call_soon_threadsafe` — the safe cross-thread hand-off into asyncio.
-
-Because the scheduler is touched only by the engine thread, there are no locks on
-scheduler state. The single lock here guards an integer in-flight counter used for
-backpressure (429). Per-request request_ids are allocated by the engine and passed
-explicitly to `scheduler.submit`, so the HTTP side never reads scheduler state.
-"""
+"""Async serving bridge for the synchronous scheduler."""
 
 from __future__ import annotations
 
@@ -36,11 +16,9 @@ import torch  # noqa: E402
 
 from core.scheduler import ContinuousBatchScheduler, RequestStatus  # noqa: E402
 
-# Window (seconds) for the rolling tokens/sec figure reported by /metrics.
 _RATE_WINDOW_S = 5.0
 
 
-# --- stream sentinels (pushed onto a StreamChannel, consumed by the SSE handler) ---
 @dataclass
 class TokenChunk:
     text: str
@@ -57,7 +35,6 @@ class Error:
     message: str
 
 
-# --- inbox commands (HTTP thread -> engine thread) ---
 @dataclass
 class _Submit:
     request_id: int
@@ -72,7 +49,7 @@ class _Cancel:
 
 
 class StreamChannel:
-    """Per-request bridge: the engine thread pushes; the SSE handler awaits."""
+    """Per-request queue shared by the engine thread and SSE handler."""
 
     def __init__(self, request_id: int, loop: asyncio.AbstractEventLoop) -> None:
         self.request_id = request_id
@@ -80,9 +57,8 @@ class StreamChannel:
         self.queue: asyncio.Queue = asyncio.Queue()
         self.t_submit = time.perf_counter()
         self.first_token_time: float | None = None
-        # bookkeeping owned by the engine thread:
-        self.seen_tokens = 0       # len(generated_ids) already emitted
-        self.prev_text_len = 0     # len of decoded text already emitted
+        self.seen_tokens = 0
+        self.prev_text_len = 0
 
     def push(self, item) -> None:
         """Thread-safe hand-off into the request's asyncio.Queue."""

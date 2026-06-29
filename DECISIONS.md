@@ -245,22 +245,11 @@ curve leans on naive HF's no-KV-cache collapse at high c for the 19.8× headline
 the more conservative, defensible numbers are the 1.5–2.0× at c≤8; (3) spec-decode
 throughput would need a faster draft path / batched accept to go net-positive.
 
-## 2026-06-28 — Phase 10: FP8 hero (9B fallback — FP8 is a capacity play, not a latency one)
+## 2026-06-28 — Phase 10 9B FP8 fallback measurement
 
-**Context / scope fallback.** The intended hero is the *fine-tuned 27B* served FP8.
-No fine-tuned 27B exists on this box (no 27B base downloaded, no 27B adapter
-trained — only the 9B target, 0.8B draft, and the distilled-draft adapter). A
-27B QLoRA from scratch is a 6–12h, OOM-risky job outside the 2-day window, so per
-the phase-10 rollback this ran the documented **FP8 9B hero fallback** on
-`merged/9b`. The same code path serves a `merged/27b` via `--model`.
-
-**Contract-respecting FP8 path.** `model_loader.load(..., quantize=)` +
-`ModelRunner.load_target(..., quantize=)` gained an optional kwarg (default `None`
-→ unchanged bf16; existing callers untouched). `quantize="fp8"` = torchao
-**weight-only FP8** (e4m3); `"fp8-dynamic"` = W8A8 dynamic-activation FP8. lm_head
-stays bf16. `scripts/hero_fp8.py` serves single-stream **through the engine**
-(`ContinuousBatchScheduler`, concurrency=1) in all three precisions and compares
-tok/s, weight footprint, peak VRAM, and greedy coherence.
+Before the 27B adapter was restored, the FP8 path was tested on `merged/9b`.
+`model_loader.load(..., quantize=)` and `ModelRunner.load_target(..., quantize=)`
+kept the default bf16 path unchanged while adding torchao FP8 recipes.
 
 **Measured (9B, single-stream greedy, 128 tok, RTX 5090):**
 
@@ -270,25 +259,8 @@ tok/s, weight footprint, peak VRAM, and greedy coherence.
 | fp8 (weight-only) | 9.9 (0.22×) | **10.5 GB (0.61×)** | **bit-identical to bf16** |
 | fp8-dynamic | 13.4 (0.30×) | 15.0 GB (0.88×) | coherent, diverges |
 
-**Findings (honest).**
-- **FP8 is a capacity win, not a single-stream latency win.** Weight-only FP8
-  halves the weight footprint with **bit-exact greedy output** — projecting the
-  27B from **≈50 GB bf16 (will not fit) to ≈30.7 GB FP8 (fits the 32 GB 5090)**.
-  That projection is the actual reason FP8 is scoped to the 27B.
-- **FP8 *slows* single-token decode on this stack** (0.22–0.30× bf16). Decode is
-  bandwidth-bound at M=1; torchao's FP8 paths on Blackwell (sm_120) / torch 2.11
-  have **no fused weight-only FP8 GEMM for M=1**, so the dequant runs unfused —
-  exactly the "FP8 kernel/path immaturity on Blackwell" risk the plan flagged.
-  FP8's compute advantage is in compute-bound prefill / large-batch, not the
-  single-stream decode regime the 27B hero lives in.
-
-**Still open (honest):** (1) no fine-tuned 27B → the headline FP8-27B serve is a
-*projection* from the 9B footprint, not a live capture; (2) the FP8 decode
-regression is a kernel-maturity issue, not an algorithmic one — a fused
-weight-only FP8 GEMM (or running FP8 only where compute-bound) would recover it;
-(3) peak-VRAM via nvidia-smi is contaminated by torch's allocator cache across
-back-to-back loads — the in-process `weight_footprint_mb` (memory_allocated right
-after load) is the trustworthy memory number.
+**Finding:** FP8 cut memory but slowed single-stream decode on this torchao /
+Blackwell stack. Treat FP8 here as a capacity tool, not a latency win.
 
 ## 2026-06-29 — 27B QLoRA adapter restored after crash rebuild
 
@@ -304,17 +276,14 @@ after load) is the trustworthy memory number.
 - **Runtime:** `9,556s` (`2h39m16s`).
 - **Artifacts verified:** final adapter files plus checkpoints through
   `checkpoint-600`; local adapter directory size is about `6.4G`.
-- **Impact:** The 27B fine-tuned adapter now exists again locally. The remaining
-  Phase-10 GPU work is not another QLoRA run; it is the safe 27B merge/FP8 path
-  that avoids materializing a full bf16 27B model in RAM/VRAM.
+- **Impact:** The 27B fine-tuned adapter now exists again locally.
 
 ## 2026-06-29 — Phase 10 27B FP8 hero: fits, but only as a capacity proof
 
 - **Path used:** `weights/Qwen3.6-27B` loaded with Transformers `TorchAoConfig`
   + torchao `Float8WeightOnlyConfig`, then `adapters/27b` attached with PEFT.
-- **Why not merged bf16 first:** the local machine has ~32 GB VRAM and ~30 GB RAM;
-  materializing a merged 27B bf16 model needs ~54 GB and was already proven OOM.
-  Load-time FP8 plus runtime LoRA avoids creating that full bf16 artifact.
+- **Why not merged bf16 first:** a merged 27B bf16 model needs ~54 GB. Load-time
+  FP8 plus runtime LoRA avoids creating that artifact.
 - **Served through:** `scripts/hero_fp8.py` -> `ModelRunner.load_target(...,
   quantize="fp8", adapter="adapters/27b")` -> `ContinuousBatchScheduler`.
 - **Measured command:** `HF_HUB_OFFLINE=1 uv run python scripts/hero_fp8.py
@@ -322,13 +291,9 @@ after load) is the trustworthy memory number.
   /home/likhi/inferd/adapters/27b --variants fp8 --n-prompts 1 --max-tokens 16`.
 - **Result file:** `bench/results/20260629T071918Z_fp8_27b_hero/result.json`.
 - **Load time / footprint:** loaded in `143.4s`; model footprint `28,857 MiB`.
-- **Runtime memory:** `nvidia-smi` peak `32,065 MiB` on a `32,607 MiB` card
-  during generation, leaving only ~`123 MiB` free at the observed moment. This
-  is too tight for longer context, batching, or dashboard-side experiments.
+- **Runtime memory:** `nvidia-smi` peak `32,065 MiB` on a `32,607 MiB` card.
+  This is too tight for batching or long-context experiments.
 - **Decode / TTFT:** `0.121 tok/s`, TTFT `9.35s` for the short prompt. The
   output was coherent but repetitive (`Paris...` continuation).
-- **Decision:** Count Phase 10 as a local capacity proof that the fine-tuned 27B
-  can be served through the engine under FP8+LoRA on the RTX 5090. Do **not**
-  present it as a practical latency win or as a true merged-FP8 artifact; the
-  honest next step would be a larger-memory machine or a streaming merge/quant
-  exporter that writes a standalone FP8 checkpoint without ever holding bf16 27B.
+- **Decision:** Count Phase 10 as a local capacity proof, not a latency win or a
+  true standalone merged-FP8 artifact.

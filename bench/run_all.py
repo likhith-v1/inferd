@@ -1,10 +1,7 @@
-"""
-bench.run_all — one-command Phase-09 orchestrator.
+"""Phase-09 benchmark/report orchestrator.
 
-Aggregates every rung on the *identical* workload, runs the spec-decode gamma
-sweep (stock + distilled draft for the alpha-lift), folds in the correctness
-gate, and regenerates the comparison plots + ``bench/report.md`` — all from the
-committed JSON under ``bench/results/`` so every number is reproducible.
+Runs or reuses benchmark result JSON, then regenerates plots and
+``bench/report.md``.
 
     # full run (GPU):
     uv run python bench/run_all.py --rungs hf,ours,vllm --concurrency 1,2,4,8,16,32 --seed 0
@@ -13,13 +10,8 @@ committed JSON under ``bench/results/`` so every number is reproducible.
     # regenerate figures + report from existing results (no GPU):
     uv run python bench/run_all.py --plots
 
-Rungs:  hf = naive HF floor · ours = our continuous-batching engine (throughput)
-        + speculative decoding (single-stream) · vllm = ceiling (deferred on
-        Blackwell if it won't build — reported honestly, never faked).
-
-This module is *append-only* orchestration: it calls the existing phase runners
-(bench.runners.*) and the phase-04 correctness gate (bench.correctness) — it
-never redefines a metric or a runner.
+Rungs: hf = naive HF floor · ours = continuous batching · vllm = ceiling.
+Speculative decoding is controlled separately by ``--spec``.
 """
 
 from __future__ import annotations
@@ -381,10 +373,10 @@ def make_report() -> None:
         verdict = "✅ PASS" if cs.get("passed") else "❌ FAIL"
         L.append(f"**{verdict}** — multi-token per-position TV test, "
                  f"n={cs.get('n')}, length={cs.get('length')}, gamma={cs.get('gamma')}.\n")
-        L.append("Spec-decode output is statistically indistinguishable from direct "
-                 "target sampling: per-position TV distance falls within the bootstrapped "
-                 "direct-vs-direct null (99th pctile). This proves the rejection-sampling "
-                 "accept rule + residual resampling are exact.\n")
+        L.append("Spec-decode passed the distribution-equivalence gate: per-position "
+                 "TV distance fell within the bootstrapped direct-vs-direct null "
+                 "(99th pctile). This is statistical evidence for the accept rule "
+                 "and residual resampling implementation.\n")
         tail = [ln for ln in cs.get("lines", []) if "->" in ln][-6:]
         if tail:
             L.append("```")
