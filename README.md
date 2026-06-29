@@ -162,20 +162,21 @@ FP8 is the **one quantization exception**, scoped to the fine-tuned 27B hero dem
 
 ## Current status
 
-Phases **01–06** have working code; **07–11** (serving, dashboard, aggregated reporting, FP8 hero, portfolio docs) are still ahead.
+Phases **01–07**, **09**, and the Phase **10** capacity proof have working code.
+The dashboard and final portfolio/docs pass are still ahead.
 
 | Phase | Deliverable | Status |
 |-------|-------------|--------|
 | 01 — Environment | Pinned WSL2 + CUDA stack; smoke test | Done |
 | 02 — Harness | Reproducible HF floor + vLLM ceiling | Done |
-| 03 — QLoRA | Fine-tuned 9B + 27B adapters; golden-set eval | Done (9B merged; 27B merge deferred) |
+| 03 — QLoRA | Fine-tuned 9B + 27B adapters; golden-set eval | Done (9B merged; 27B adapter restored) |
 | 04 — Spec decode | Exact rejection sampling + correctness gate; α-lift | Done (correctness proven; net speedup negative on hybrid model) |
 | 05 — Paged KV | Block allocator + reference paged attention | Done (runtime persistent cache TBD) |
 | 06 — Batching | Iteration-level scheduler + batched decode | Done |
-| 07 — Serving | FastAPI + SSE | Not started |
+| 07 — Serving | FastAPI + SSE | Done |
 | 08 — Dashboard | Live metrics UI | Not started |
-| 09 — Bench/report | Aggregated plots; one-command reproduce | Not started |
-| 10 — FP8 hero | Fine-tuned 27B via FP8 | Not started |
+| 09 — Bench/report | Aggregated plots; one-command reproduce | Done |
+| 10 — FP8 hero | Fine-tuned 27B via FP8 | Done as capacity proof; latency impractical |
 | 11 — Docs | Portfolio-ready README with final numbers | In progress |
 
 ### Early results (preliminary)

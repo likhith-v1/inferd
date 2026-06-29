@@ -1,0 +1,47 @@
+{
+  "demo": "fp8_hero",
+  "model": "/home/likhi/inferd/weights/Qwen3.6-27B",
+  "adapter": "/home/likhi/inferd/adapters/27b",
+  "note": "Fine-tuned 27B FP8 path: load-time FP8 base with LoRA adapter attached; full bf16 merge is avoided because it does not fit local RAM/VRAM.",
+  "env": {
+    "timestamp": "2026-06-29T07:13:15Z",
+    "seed": 0,
+    "workload_hash": "282b5f427b376994",
+    "python": "3.13.14 (main, Jun 23 2026, 15:18:27) [Clang 22.1.3 ]",
+    "platform": "Linux-6.18.33.1-microsoft-standard-WSL2-x86_64-with-glibc2.43",
+    "torch": "2.11.0+cu130",
+    "cuda_available": true,
+    "gpu_name": "NVIDIA GeForce RTX 5090",
+    "gpu_capability": [
+      12,
+      0
+    ],
+    "cuda_version": "13.0",
+    "transformers": "5.3.0",
+    "driver_version": "610.62",
+    "vram_total_mb": "32607 MiB",
+    "git_commit": "49ff146"
+  },
+  "max_tokens": 16,
+  "variants": {
+    "fp8": {
+      "precision": "fp8",
+      "load_s": 143.3870758209996,
+      "weight_footprint_mb": 28857.04296875,
+      "peak_vram_mb": 32065.0,
+      "peak_vram_torch_mb": 38983.9248046875,
+      "mean_decode_tok_s": 0.12100474042237262,
+      "mean_ttft_s": 9.348328677000609,
+      "runs": [
+        {
+          "prompt": "The capital of France is",
+          "tokens": 16,
+          "decode_tok_s": 0.12100474042237262,
+          "ttft_s": 9.348328677000609,
+          "sample": " Paris.\n\nThe capital of France is Paris.\n\nThe capital of France is"
+        }
+      ]
+    }
+  },
+  "summary": {}
+}
