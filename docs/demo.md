@@ -5,10 +5,10 @@ rate (α) and throughput-vs-concurrency curves moving in real time. This file is
 capture script so the recording is reproducible and the numbers on screen match
 `bench/results/`.
 
-> **Blocked on phase 08 (dashboard).** The engine, serving layer, and `/metrics` SSE
-> feed all exist; the live UI that visualizes them does not yet. Record once the
-> dashboard is up. Until then, the static plots in `bench/results/plots/` are the
-> portfolio artifact.
+> **Ready to capture.** The dashboard (phase 08) is built and visualizes the live
+> `/metrics` + `/generate` feeds; the engine and serving layer exist. The only
+> outstanding artifact is the recording itself — follow the steps below. Until it's
+> shot, the static plots in `bench/results/plots/` are the portfolio artifact.
 
 ## What to show (in order)
 
@@ -30,8 +30,8 @@ capture script so the recording is reproducible and the numbers on screen match
 INFERD_MODEL=/home/likhi/inferd/merged/9b \
   uv run uvicorn serve.app:app --port 8000
 
-# 2. (separate shell) start the dashboard dev server  [phase 08]
-#    cd dashboard && npm run dev   # points at http://localhost:8000
+# 2. (separate shell) start the dashboard dev server
+#    cd dashboard && bun install && bun run dev   # Vite proxies to http://localhost:8000
 
 # 3. Drive load — reuse the frozen benchmark workload so on-screen numbers
 #    match bench/results/ exactly
@@ -55,4 +55,4 @@ uv run python bench/run_all.py --rungs hf,ours --concurrency 1,4,8,16,32 --plots
 | VRAM vs concurrency | `bench/results/plots/vram_vs_concurrency.png` | ✅ generated |
 | α vs gamma | `bench/results/plots/alpha_vs_gamma.png` | ✅ generated |
 | Spec speedup vs gamma | `bench/results/plots/spec_speedup_vs_gamma.png` | ✅ generated |
-| Under-load demo video | `docs/assets/demo.mp4` | ⏳ pending dashboard (phase 08) |
+| Under-load demo video | `docs/assets/demo.mp4` | ⏳ pending capture (dashboard ready) |

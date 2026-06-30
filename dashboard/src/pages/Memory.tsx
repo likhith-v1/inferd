@@ -23,9 +23,10 @@ export default function Memory() {
   const { benchmarks, metrics } = useDashboard();
   const live = metrics.data;
   const vramTotal = benchmarks.environment.vramTotalMb;
-  const peak = live?.peak_vram_mb ?? 0;
-  const headroomMb = Math.max(0, vramTotal - peak);
-  const headroomPct = vramTotal ? (headroomMb / vramTotal) * 100 : 0;
+  const peakVram = live?.peak_vram_mb ?? null;
+  const headroomMb = peakVram === null ? null : Math.max(0, vramTotal - peakVram);
+  const headroomPct =
+    headroomMb === null || vramTotal <= 0 ? null : (headroomMb / vramTotal) * 100;
 
   return (
     <div className="page-stack">
@@ -52,9 +53,9 @@ export default function Memory() {
           value={headroomPct}
           max={100}
           display={percent(headroomPct, 0)}
-          detail={`${mibToGib(headroomMb, 1)} free`}
+          detail={headroomMb === null ? "awaiting /metrics" : `${mibToGib(headroomMb, 1)} free`}
           source="rederived"
-          tone={headroomPct < 15 ? "amber" : "green"}
+          tone={headroomPct !== null && headroomPct < 15 ? "amber" : "green"}
           ariaLabel={`VRAM headroom ${percent(headroomPct, 0)}`}
         />
       </div>

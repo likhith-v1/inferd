@@ -1,6 +1,6 @@
 # inferd
 
-> **Status:** the full pipeline — fine-tuning, engine, serving, benchmarks, and the FP8 27B hero — is built and measured. Every number below traces to a `result.json` under `bench/results/` and regenerates from one command. The live **React dashboard (phase 08) is the one piece still ahead**. See [Current status](#current-status).
+> **Status:** the full pipeline — fine-tuning, engine, serving, benchmarks, the FP8 27B hero, and the live **React dashboard** — is built and measured. Every number below traces to a `result.json` under `bench/results/` and regenerates from one command. The only piece still ahead is the under-load **demo capture** (`docs/demo.md`). See [Current status](#current-status).
 
 A from-scratch local LLM inference stack: **QLoRA fine-tuning → speculative decoding → paged KV-cache → continuous batching**, served via FastAPI with a React metrics dashboard. Benchmarked against a naive Hugging Face baseline and vLLM as the reference ceiling. Runs fully offline on a single RTX 5090 — no cloud APIs, no external inference dependencies.
 
@@ -16,7 +16,7 @@ The thesis is depth on both ends: fine-tune a showcase model *and* serve it thro
 | **Inference core** | Exact speculative decoding, paged KV-cache, iteration-level continuous batching | Implemented (`core/`) |
 | **Benchmarking** | Headless harness, distribution-equivalence test, throughput-vs-concurrency curves | Implemented (`bench/`) |
 | **Serving** | FastAPI async queue, SSE token streaming, `/metrics` and `/healthz` | Implemented (`serve/`) |
-| **Dashboard** | Live tokens/sec, TTFT, draft acceptance rate α, VRAM, concurrency | Planned (phase 08) |
+| **Dashboard** | Live tokens/sec, TTFT, draft acceptance rate α, VRAM, concurrency | Implemented (`dashboard/`) |
 
 ---
 
@@ -105,7 +105,7 @@ inferd/
 └── uv.lock                 # Pinned dependency lockfile
 ```
 
-Planned but not yet present: `dashboard/`.
+`dashboard/` is present (React + Vite + TS); see [`dashboard/`](dashboard/).
 
 `core/model_runner.py` is the shared hot file — phases extend it via new methods; callers treat `kv` as an opaque handle.
 
@@ -162,8 +162,8 @@ FP8 is the **one quantization exception**, scoped to the fine-tuned 27B hero dem
 
 ## Current status
 
-Phases **01–07**, **09**, **10** (capacity proof), and the **11** docs pass are complete.
-The live dashboard (08) and its under-load demo capture are the only pieces still ahead.
+**All phases 01–11 are code-complete**, including the live dashboard (08), which passes
+build + lint. The only piece still ahead is the under-load **demo capture** (`docs/demo.md`).
 
 | Phase | Deliverable | Status |
 |-------|-------------|--------|
@@ -174,10 +174,10 @@ The live dashboard (08) and its under-load demo capture are the only pieces stil
 | 05 — Paged KV | Block allocator + reference paged attention | Done (runtime persistent cache TBD) |
 | 06 — Batching | Iteration-level scheduler + batched decode | Done |
 | 07 — Serving | FastAPI + SSE | Done |
-| 08 — Dashboard | Live metrics UI | Not started |
+| 08 — Dashboard | Live metrics UI | Done (builds + lints; demo capture pending) |
 | 09 — Bench/report | Aggregated plots; one-command reproduce | Done |
 | 10 — FP8 hero | Fine-tuned 27B via FP8 | Done as capacity proof; latency impractical |
-| 11 — Docs | Portfolio-ready README with final numbers | Done (demo capture pending dashboard) |
+| 11 — Docs | Portfolio-ready README with final numbers | Done (demo capture still pending) |
 
 ### Results
 
