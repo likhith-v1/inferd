@@ -7,6 +7,8 @@ runs/
 .venv/
 bench/.venv-vllm/
 unsloth_compiled_cache/
+dashboard/node_modules/
+dashboard/dist/
 **/__pycache__/
 *.pyc
 *.pyo

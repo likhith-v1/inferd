@@ -1,0 +1,109 @@
+import { Activity, Cpu, Gauge, Trophy } from "lucide-react";
+import KpiCard from "../components/KpiCard";
+import SourceBadge from "../components/SourceBadge";
+import ThroughputChart from "../components/ThroughputChart";
+import { sourceLabel } from "../lib/benchmarks";
+import { useDashboard } from "../lib/dashboard";
+import { fixed, mibToGib, rate } from "../lib/format";
+
+export default function Benchmarks() {
+  const { benchmarks } = useDashboard();
+  const headline = benchmarks.throughput.headline;
+
+  return (
+    <div className="page-stack">
+      <div className="kpi-grid">
+        <KpiCard title="Headline speedup" value={`${fixed(headline.speedup, 2)}x`} detail={`c=${headline.concurrency} vs naive HF`} source="benchmark" icon={Trophy} />
+        <KpiCard title="inferd c=32" value={rate(headline.oursTokS, 1)} detail="continuous batching" source="benchmark" icon={Activity} />
+        <KpiCard title="Naive HF c=32" value={rate(headline.naiveHfTokS, 1)} detail="floor baseline" source="benchmark" icon={Gauge} />
+        <KpiCard title="VRAM total" value={mibToGib(benchmarks.environment.vramTotalMb, 1)} detail={benchmarks.environment.gpuName} source="benchmark" icon={Cpu} />
+      </div>
+
+      <div className="two-col wide-left">
+        <ThroughputChart
+          rows={benchmarks.throughput.rows}
+          subtitle={sourceLabel(benchmarks)}
+          ariaLabel="Benchmark throughput by concurrency"
+        />
+        <section className="panel fact-panel">
+          <div className="panel-heading">
+            <div>
+              <h2>Snapshot provenance</h2>
+              <p>{benchmarks.reportPath}</p>
+            </div>
+            <SourceBadge kind="benchmark" />
+          </div>
+          <dl className="fact-list">
+            <div><dt>snapshot commit</dt><dd>{benchmarks.sourceCommit}</dd></div>
+            <div><dt>benchmark commit</dt><dd>{benchmarks.benchmarkCommit}</dd></div>
+            <div><dt>generated</dt><dd>{new Date(benchmarks.generatedAt).toLocaleString()}</dd></div>
+            <div><dt>vLLM</dt><dd>{benchmarks.throughput.vllmStatus}</dd></div>
+          </dl>
+        </section>
+      </div>
+
+      <div className="two-col">
+        <section className="panel table-panel">
+          <div className="panel-heading">
+            <div>
+              <h2>Throughput table</h2>
+              <p>tokens/sec, matched workload</p>
+            </div>
+            <SourceBadge kind="benchmark" />
+          </div>
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>c</th>
+                <th>naive HF</th>
+                <th>inferd</th>
+                <th>ratio</th>
+                <th>vLLM</th>
+              </tr>
+            </thead>
+            <tbody>
+              {benchmarks.throughput.rows.map((row) => (
+                <tr key={row.concurrency}>
+                  <td>{row.concurrency}</td>
+                  <td>{fixed(row.naiveHf, 1)}</td>
+                  <td>{fixed(row.ours, 1)}</td>
+                  <td>{row.naiveHf && row.ours ? `${fixed(row.ours / row.naiveHf, 2)}x` : "—"}</td>
+                  <td>{fixed(row.vllm, 1)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+        <section className="panel table-panel">
+          <div className="panel-heading">
+            <div>
+              <h2>VRAM table</h2>
+              <p>MiB peak from nvidia-smi</p>
+            </div>
+            <SourceBadge kind="benchmark" />
+          </div>
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>c</th>
+                <th>naive HF</th>
+                <th>inferd</th>
+                <th>vLLM</th>
+              </tr>
+            </thead>
+            <tbody>
+              {benchmarks.vram.rows.map((row) => (
+                <tr key={row.concurrency}>
+                  <td>{row.concurrency}</td>
+                  <td>{fixed(row.naiveHf, 0)}</td>
+                  <td>{fixed(row.ours, 0)}</td>
+                  <td>{fixed(row.vllm, 0)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      </div>
+    </div>
+  );
+}
