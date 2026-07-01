@@ -15,6 +15,10 @@ export default function Streams() {
 
   return (
     <div className="page-stack">
+      <div>
+        <h1 className="page-title">Streams</h1>
+        <p className="page-subtitle">Drive the engine from the playground and watch live SSE generate streams.</p>
+      </div>
       <div className="streams-layout">
         <Playground />
         <ActiveSequencesTable

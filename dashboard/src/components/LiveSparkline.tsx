@@ -21,8 +21,8 @@ export default function LiveSparkline({ data }: { data: MetricsPoint[] }) {
           <AreaChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
             <defs>
               <linearGradient id="live-spark" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#2ee6a6" stopOpacity={0.36} />
-                <stop offset="100%" stopColor="#2ee6a6" stopOpacity={0} />
+                <stop offset="0%" stopColor="#a1a2a7" stopOpacity={0.32} />
+                <stop offset="100%" stopColor="#a1a2a7" stopOpacity={0} />
               </linearGradient>
             </defs>
             <XAxis hide dataKey="label" />
@@ -30,10 +30,10 @@ export default function LiveSparkline({ data }: { data: MetricsPoint[] }) {
             <Tooltip
               cursor={{ stroke: "rgba(255,255,255,.14)" }}
               contentStyle={{
-                background: "#0a1138",
+                background: "#1c1c20",
                 border: "1px solid rgba(255,255,255,.12)",
-                borderRadius: 12,
-                color: "#fff"
+                borderRadius: 14,
+                color: "#f2f3f4"
               }}
               formatter={(value: number) => [`${value.toFixed(1)} tok/s`, "live"]}
               labelFormatter={(value) => value}
@@ -41,7 +41,7 @@ export default function LiveSparkline({ data }: { data: MetricsPoint[] }) {
             <Area
               type="monotone"
               dataKey="tokensPerSecond"
-              stroke="#2ee6a6"
+              stroke="#a1a2a7"
               strokeWidth={2.5}
               fill="url(#live-spark)"
               isAnimationActive={false}

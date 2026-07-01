@@ -30,6 +30,10 @@ export default function Memory() {
 
   return (
     <div className="page-stack">
+      <div>
+        <h1 className="page-title">Paged KV memory</h1>
+        <p className="page-subtitle">Block occupancy and VRAM headroom on the 32 GiB card.</p>
+      </div>
       <div className="kpi-grid three">
         <KpiCard title="Used blocks" value={compact(live?.used_blocks)} detail={`${compact(live?.free_blocks)} free`} source="live" icon={Database} />
         <KpiCard title="Max blocks used" value={compact(live?.max_blocks_used)} detail="scheduler high-water mark" source="live" icon={Layers3} />

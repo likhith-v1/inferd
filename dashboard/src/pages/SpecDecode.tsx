@@ -33,20 +33,20 @@ function SpecChart({ mode }: { mode: "alpha" | "speedup" }) {
       <div className="chart-frame" role="img" aria-label={`Spec decode ${mode} by gamma`}>
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={rows} margin={{ top: 8, right: 10, bottom: 0, left: 0 }}>
-            <CartesianGrid stroke="rgba(255,255,255,.08)" vertical={false} />
-            <XAxis dataKey="gamma" tick={{ fill: "#8b96c4", fontSize: 11 }} axisLine={false} tickLine={false} />
-            <YAxis tick={{ fill: "#8b96c4", fontSize: 11 }} axisLine={false} tickLine={false} width={42} />
+            <CartesianGrid stroke="rgba(255,255,255,.07)" vertical={false} />
+            <XAxis dataKey="gamma" tick={{ fill: "#85868b", fontSize: 11 }} axisLine={false} tickLine={false} />
+            <YAxis tick={{ fill: "#85868b", fontSize: 11 }} axisLine={false} tickLine={false} width={42} />
             <Tooltip
               contentStyle={{
-                background: "#0a1138",
+                background: "#1c1c20",
                 border: "1px solid rgba(255,255,255,.12)",
-                borderRadius: 12,
-                color: "#fff"
+                borderRadius: 14,
+                color: "#f2f3f4"
               }}
             />
-            <Legend wrapperStyle={{ color: "#8b96c4", fontSize: 12 }} />
-            <Line type="monotone" dataKey={stockKey} name="stock draft" stroke="#8b96c4" strokeWidth={2} dot={{ r: 4 }} isAnimationActive={false} />
-            <Line type="monotone" dataKey={distilledKey} name="distilled draft" stroke="#21d4fd" strokeWidth={3} dot={{ r: 4 }} isAnimationActive={false} />
+            <Legend wrapperStyle={{ color: "#85868b", fontSize: 12 }} />
+            <Line type="monotone" dataKey={stockKey} name="stock draft" stroke="#75767b" strokeWidth={2} dot={{ r: 4 }} isAnimationActive={false} />
+            <Line type="monotone" dataKey={distilledKey} name="distilled draft" stroke="#f2f3f5" strokeWidth={3} dot={{ r: 4 }} isAnimationActive={false} />
           </LineChart>
         </ResponsiveContainer>
       </div>
@@ -60,6 +60,10 @@ export default function SpecDecode() {
 
   return (
     <div className="page-stack">
+      <div>
+        <h1 className="page-title">Speculative decoding</h1>
+        <p className="page-subtitle">Exact rejection sampling with residual resampling — the correctness proof and α-lift are the deliverables, not raw speed.</p>
+      </div>
       <div className="spec-grid">
         <RadialGauge
           title="Draft acceptance"

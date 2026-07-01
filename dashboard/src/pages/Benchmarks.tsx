@@ -12,6 +12,10 @@ export default function Benchmarks() {
 
   return (
     <div className="page-stack">
+      <div>
+        <h1 className="page-title">Benchmarks</h1>
+        <p className="page-subtitle">inferd against the naive HF floor and the vLLM ceiling — snapshot from bench/report.md.</p>
+      </div>
       <div className="kpi-grid">
         <KpiCard title="Headline speedup" value={`${fixed(headline.speedup, 2)}x`} detail={`c=${headline.concurrency} vs naive HF`} source="benchmark" icon={Trophy} />
         <KpiCard title="inferd c=32" value={rate(headline.oursTokS, 1)} detail="continuous batching" source="benchmark" icon={Activity} />
