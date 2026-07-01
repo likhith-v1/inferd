@@ -47,8 +47,8 @@ export default function RadialGauge({
           <svg viewBox="0 0 180 116" aria-hidden="true">
             <defs>
               <linearGradient id={gradientId} x1="0" y1="0" x2="1" y2="0">
-                <stop offset="0" stopColor={tone === "amber" ? "#ffb86a" : "#2152ff"} />
-                <stop offset="1" stopColor={tone === "green" ? "#2ee6a6" : "#21d4fd"} />
+                <stop offset="0" stopColor={tone === "amber" ? "#8a6a44" : "#55565b"} />
+                <stop offset="1" stopColor={tone === "amber" ? "#d2a679" : "#f2f3f5"} />
               </linearGradient>
             </defs>
             <path
@@ -73,8 +73,8 @@ export default function RadialGauge({
           <svg viewBox="0 0 120 120" aria-hidden="true">
             <defs>
               <linearGradient id={gradientId} x1="0" y1="0" x2="1" y2="1">
-                <stop offset="0" stopColor="#21d4fd" />
-                <stop offset="1" stopColor={tone === "amber" ? "#ffb86a" : "#01b574"} />
+                <stop offset="0" stopColor="#f2f3f5" />
+                <stop offset="1" stopColor={tone === "amber" ? "#d2a679" : "#8a8b90"} />
               </linearGradient>
             </defs>
             <circle cx="60" cy="60" r="46" fill="none" stroke="rgba(255,255,255,.12)" strokeWidth="10" />

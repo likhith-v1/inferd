@@ -40,19 +40,19 @@ export default function ThroughputChart({
           <LineChart data={rows} margin={{ top: 8, right: 10, bottom: 0, left: 0 }}>
             <defs>
               <linearGradient id="ours-area" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#21d4fd" stopOpacity={0.34} />
-                <stop offset="100%" stopColor="#21d4fd" stopOpacity={0} />
+                <stop offset="0%" stopColor="#d7d8db" stopOpacity={0.22} />
+                <stop offset="100%" stopColor="#d7d8db" stopOpacity={0} />
               </linearGradient>
             </defs>
-            <CartesianGrid stroke="rgba(255,255,255,.08)" vertical={false} />
+            <CartesianGrid stroke="rgba(255,255,255,.07)" vertical={false} />
             <XAxis
               dataKey="concurrency"
-              tick={{ fill: "#8b96c4", fontSize: 11 }}
+              tick={{ fill: "#85868b", fontSize: 11 }}
               axisLine={false}
               tickLine={false}
             />
             <YAxis
-              tick={{ fill: "#8b96c4", fontSize: 11 }}
+              tick={{ fill: "#85868b", fontSize: 11 }}
               axisLine={false}
               tickLine={false}
               width={42}
@@ -60,10 +60,10 @@ export default function ThroughputChart({
             <Tooltip
               cursor={{ stroke: "rgba(255,255,255,.14)" }}
               contentStyle={{
-                background: "#0a1138",
+                background: "#1c1c20",
                 border: "1px solid rgba(255,255,255,.12)",
-                borderRadius: 12,
-                color: "#fff"
+                borderRadius: 14,
+                color: "#f2f3f4"
               }}
               formatter={(value: number | string, name: string) => [
                 value === null ? "pending" : `${Number(value).toFixed(1)} ${metric}`,
@@ -92,16 +92,16 @@ export default function ThroughputChart({
             <Line
               type="monotone"
               dataKey="ours"
-              stroke="#21d4fd"
+              stroke="#f2f3f5"
               strokeWidth={3}
-              dot={{ r: 4, strokeWidth: 2, fill: "#05081e" }}
+              dot={{ r: 4, strokeWidth: 2, fill: "#0a0a0b" }}
               isAnimationActive={false}
               connectNulls
             />
             <Line
               type="monotone"
               dataKey="vllm"
-              stroke="#ffb86a"
+              stroke="#8a8b90"
               strokeDasharray="3 5"
               strokeWidth={2}
               dot={{ r: 3 }}
