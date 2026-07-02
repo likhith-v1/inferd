@@ -66,7 +66,12 @@ def load(
     quantize: str | None = None,
     adapter: str | Path | None = None,
 ) -> tuple:
-    """Load text backbone, optionally with FP8 quantization and a LoRA adapter."""
+    """Load text backbone, optionally with FP8 quantization and a LoRA adapter.
+
+    When an adapter is supplied without quantization, weights are merged into the
+    base checkpoint before backbone extraction. The FP8 hero path keeps runtime LoRA
+    because a merged bf16 27B does not fit on-card.
+    """
     weights_dir = Path(weights_dir)
     if not weights_dir.exists():
         raise FileNotFoundError(f"Weights directory not found: {weights_dir}")
@@ -90,10 +95,13 @@ def load(
             is_trainable=False,
             low_cpu_mem_usage=True,
         )
+        if quantize is None:
+            # Merged weights fit for bf16 paths (9B, etc.). FP8 27B keeps runtime
+            # LoRA because a merged bf16 27B checkpoint does not fit the card.
+            model = model.merge_and_unload()
+        else:
+            model = _peft_inner_model(model)
     model.eval()
-
-    if adapter is not None:
-        model = _peft_inner_model(model)
 
     if hasattr(model, "model") and hasattr(model.model, "language_model"):
         lm = model.model.language_model
