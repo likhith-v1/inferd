@@ -99,7 +99,10 @@ def create_app(engine: Engine | None = None) -> FastAPI:
         violation = eng.limit_violation(len(prompt_ids), body.max_tokens)
         if violation:
             raise HTTPException(status_code=400, detail=violation)
-        channel = eng.submit(prompt_ids, body.max_tokens)
+        try:
+            channel = eng.submit(prompt_ids, body.max_tokens)
+        except RuntimeError as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
         if channel is None:
             raise HTTPException(status_code=429, detail="engine saturated; retry later")
 
