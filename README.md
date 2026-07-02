@@ -240,6 +240,18 @@ Development uses one git worktree per phase (`phase-NN-slug` → merge into `dev
 
 ---
 
+## Future plans
+
+Not committed — early ideation and follow-ups beyond the v1 CUDA stack:
+
+- **Apple Silicon (MLX)** — ideation stage; exploring a Metal/MLX port so the same pipeline can run on Mac hardware without the WSL2 + CUDA dependency.
+- **Persistent paged runtime KV cache** — wire the phase-05 block allocator into live decode instead of stacking HF caches.
+- **Batched speculative decoding** — extend accept/replay through the continuous batching scheduler.
+- **vLLM ceiling on Blackwell** — re-run when sm_120 wheels are available.
+- **Triton paged-attention kernel** — replace the reference Python path with a fused kernel.
+
+---
+
 ## Hardware & environment
 
 - **GPU:** NVIDIA RTX 5090 (Blackwell, sm_120), 32 GB VRAM
