@@ -9,6 +9,8 @@ bench/.venv-vllm/
 unsloth_compiled_cache/
 dashboard/node_modules/
 dashboard/dist/
+.DS_Store
+**/.DS_Store/
 **/__pycache__/
 *.pyc
 *.pyo
