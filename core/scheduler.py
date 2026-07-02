@@ -25,6 +25,7 @@ class RequestStatus(str, Enum):
     RUNNING = "running"
     COMPLETED = "completed"
     FAILED = "failed"
+    CANCELLED = "cancelled"
 
 
 @dataclass(frozen=True)
@@ -166,6 +167,7 @@ class ContinuousBatchScheduler:
         self._running: OrderedDict[int, GenerationRequest] = OrderedDict()
         self._completed: OrderedDict[int, GenerationRequest] = OrderedDict()
         self._failed: OrderedDict[int, GenerationRequest] = OrderedDict()
+        self._cancelled: OrderedDict[int, GenerationRequest] = OrderedDict()
         self._next_id = 1
         self._used_blocks = 0
         self._max_blocks_used = 0
@@ -261,10 +263,36 @@ class ContinuousBatchScheduler:
             return self._completed[request_id]
         if request_id in self._failed:
             return self._failed[request_id]
+        if request_id in self._cancelled:
+            return self._cancelled[request_id]
         for req in self._waiting:
             if req.request_id == request_id:
                 return req
         return None
+
+    def cancel(self, request_id: int) -> bool:
+        """
+        Cancel a request, freeing its KV blocks immediately (used by the serving
+        layer on client disconnect). Returns True if it was waiting or running,
+        False if it was unknown or already terminal (completed/failed/cancelled).
+        """
+        if request_id in self._running:
+            req = self._running.pop(request_id)
+            self._used_blocks -= req.reserved_blocks
+            req.kv = None
+            req.last_logits = None
+        else:
+            for i, req in enumerate(self._waiting):
+                if req.request_id == request_id:
+                    self._waiting.rotate(-i)
+                    self._waiting.popleft()
+                    self._waiting.rotate(i)
+                    break
+            else:
+                return False
+        req.status = RequestStatus.CANCELLED
+        self._cancelled[request_id] = req
+        return True
 
     def _admit_waiting(self) -> None:
         while self._waiting and len(self._running) < self.config.max_concurrent_sequences:

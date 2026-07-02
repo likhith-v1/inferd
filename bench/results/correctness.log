@@ -1,0 +1,89 @@
+[correctness] prompt[0] pos[0] TV=0.0167 null_p99=0.0347 -> PASS
+[correctness] prompt[0] pos[1] TV=0.0260 null_p99=0.0587 -> PASS
+[correctness] prompt[0] pos[2] TV=0.0773 null_p99=0.0933 -> PASS
+[correctness] prompt[0] pos[3] TV=0.0960 null_p99=0.1373 -> PASS
+[correctness] prompt[0] pos[4] TV=0.1060 null_p99=0.1460 -> PASS
+[correctness] prompt[0] pos[5] TV=0.1480 null_p99=0.1780 -> PASS
+[correctness] prompt[1] pos[0] TV=0.0000 null_p99=0.0000 -> PASS
+[correctness] prompt[1] pos[1] TV=0.0247 null_p99=0.0440 -> PASS
+[correctness] prompt[1] pos[2] TV=0.0247 null_p99=0.0387 -> PASS
+[correctness] prompt[1] pos[3] TV=0.0473 null_p99=0.0573 -> PASS
+[correctness] prompt[1] pos[4] TV=0.0620 null_p99=0.0627 -> PASS
+[correctness] prompt[1] pos[5] TV=0.0400 null_p99=0.0553 -> PASS
+[correctness] prompt[2] pos[0] TV=0.0000 null_p99=0.0000 -> PASS
+[correctness] prompt[2] pos[1] TV=0.0213 null_p99=0.0453 -> PASS
+[correctness] prompt[2] pos[2] TV=0.0233 null_p99=0.0560 -> PASS
+[correctness] prompt[2] pos[3] TV=0.0407 null_p99=0.0613 -> PASS
+[correctness] prompt[2] pos[4] TV=0.0113 null_p99=0.0540 -> PASS
+[correctness] prompt[2] pos[5] TV=0.0133 null_p99=0.0500 -> PASS
+
+[correctness:seq] PASS (n=1500, length=6, gamma=4, prompts=3)
+
+Loading weights:   0%|          | 0/427 [00:00<?, ?it/s]
+Loading weights:   0%|          | 1/427 [00:04<29:45,  4.19s/it]
+Loading weights:   6%|▋         | 27/427 [00:04<00:45,  8.80it/s]
+Loading weights:  11%|█         | 46/427 [00:04<00:22, 16.88it/s]
+Loading weights:  16%|█▌        | 67/427 [00:04<00:12, 28.23it/s]
+Loading weights:  22%|██▏       | 94/427 [00:04<00:07, 46.05it/s]
+Loading weights:  26%|██▋       | 113/427 [00:04<00:05, 58.89it/s]
+Loading weights:  31%|███       | 133/427 [00:04<00:03, 75.43it/s]
+Loading weights:  35%|███▌      | 151/427 [00:05<00:03, 87.31it/s]
+Loading weights:  40%|████      | 171/427 [00:05<00:02, 104.81it/s]
+Loading weights:  44%|████▍     | 189/427 [00:05<00:02, 110.42it/s]
+Loading weights:  48%|████▊     | 206/427 [00:05<00:01, 118.48it/s]
+Loading weights:  53%|█████▎    | 226/427 [00:05<00:01, 131.26it/s]
+Loading weights:  58%|█████▊    | 249/427 [00:05<00:01, 153.02it/s]
+Loading weights:  63%|██████▎   | 267/427 [00:05<00:01, 130.33it/s]
+Loading weights:  68%|██████▊   | 292/427 [00:05<00:00, 155.11it/s]
+Loading weights:  73%|███████▎  | 310/427 [00:06<00:00, 143.46it/s]
+Loading weights:  78%|███████▊  | 331/427 [00:06<00:00, 155.84it/s]
+Loading weights:  82%|████████▏ | 349/427 [00:06<00:00, 135.50it/s]
+Loading weights:  85%|████████▌ | 365/427 [00:06<00:00, 136.78it/s]
+Loading weights:  92%|█████████▏| 394/427 [00:06<00:00, 167.23it/s]
+Loading weights:  96%|█████████▋| 412/427 [00:06<00:00, 140.77it/s]
+Loading weights: 100%|██████████| 427/427 [00:06<00:00, 62.57it/s] 
+[1mQwen3_5ForConditionalGeneration LOAD REPORT[0m from: /home/likhi/inferd/merged/9b
+Key                                                | Status  | 
+---------------------------------------------------+---------+-
+model.visual.blocks.{0...26}.mlp.linear_fc2.bias   | MISSING | 
+model.visual.blocks.{0...26}.mlp.linear_fc1.weight | MISSING | 
+model.visual.blocks.{0...26}.attn.qkv.bias         | MISSING | 
+model.visual.blocks.{0...26}.attn.proj.bias        | MISSING | 
+model.visual.blocks.{0...26}.mlp.linear_fc1.bias   | MISSING | 
+model.visual.blocks.{0...26}.norm2.weight          | MISSING | 
+model.visual.blocks.{0...26}.mlp.linear_fc2.weight | MISSING | 
+model.visual.blocks.{0...26}.norm1.weight          | MISSING | 
+model.visual.blocks.{0...26}.norm1.bias            | MISSING | 
+model.visual.blocks.{0...26}.norm2.bias            | MISSING | 
+model.visual.blocks.{0...26}.attn.qkv.weight       | MISSING | 
+model.visual.merger.linear_fc1.bias                | MISSING | 
+model.visual.blocks.{0...26}.attn.proj.weight      | MISSING | 
+model.visual.patch_embed.proj.weight               | MISSING | 
+model.visual.merger.linear_fc2.weight              | MISSING | 
+model.visual.merger.linear_fc2.bias                | MISSING | 
+model.visual.merger.norm.weight                    | MISSING | 
+model.visual.patch_embed.proj.bias                 | MISSING | 
+model.visual.merger.norm.bias                      | MISSING | 
+model.visual.merger.linear_fc1.weight              | MISSING | 
+model.visual.pos_embed.weight                      | MISSING | 
+
+[3mNotes:
+- MISSING[3m	:those params were newly initialized because missing from the checkpoint. Consider training on your downstream task.[0m
+
+Loading weights:   0%|          | 0/473 [00:00<?, ?it/s]
+Loading weights:   0%|          | 1/473 [00:00<02:16,  3.45it/s]
+Loading weights:  10%|▉         | 46/473 [00:00<00:02, 145.05it/s]
+Loading weights:  18%|█▊        | 87/473 [00:00<00:01, 227.18it/s]
+Loading weights:  25%|██▌       | 120/473 [00:00<00:01, 258.28it/s]
+Loading weights:  32%|███▏      | 152/473 [00:00<00:01, 232.38it/s]
+Loading weights:  39%|███▊      | 183/473 [00:00<00:01, 250.91it/s]
+Loading weights:  45%|████▍     | 212/473 [00:01<00:01, 219.64it/s]
+Loading weights:  50%|█████     | 237/473 [00:01<00:01, 217.37it/s]
+Loading weights:  55%|█████▌    | 261/473 [00:01<00:00, 217.70it/s]
+Loading weights:  61%|██████▏   | 290/473 [00:01<00:00, 234.79it/s]
+Loading weights:  67%|██████▋   | 315/473 [00:01<00:00, 230.33it/s]
+Loading weights:  75%|███████▌  | 357/473 [00:01<00:00, 281.53it/s]
+Loading weights:  82%|████████▏ | 388/473 [00:01<00:00, 287.48it/s]
+Loading weights:  92%|█████████▏| 434/473 [00:01<00:00, 331.53it/s]
+Loading weights:  99%|█████████▉| 468/473 [00:01<00:00, 316.17it/s]
+Loading weights: 100%|██████████| 473/473 [00:01<00:00, 246.21it/s]

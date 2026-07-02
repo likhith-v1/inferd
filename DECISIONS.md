@@ -163,3 +163,137 @@ Phase-05 follow-up); the per-step stack/split is cheap vs a 9B weight sweep but 
 not a paged kernel; (3) batched speculative decoding still not implemented; (4) the
 continuous-vs-static numbers need a warmup pass to remove the back-to-back ordering
 bias before being quoted as headline figures.
+
+## 2026-06-28 — Phase 07 FastAPI serving layer
+
+- **Decision:** Wrap the engine in an async FastAPI service (`serve/`) without making
+  the core depend on HTTP. The scheduler is synchronous/step-driven with no streaming
+  hooks, so serving runs a **single background "engine thread"** (`serve/engine.py`)
+  that exclusively owns the `ContinuousBatchScheduler`: HTTP `/generate` handlers
+  tokenize + post a Submit command to a thread-safe inbox and `await` token chunks off
+  a per-request `StreamChannel` (asyncio.Queue); the engine thread drains the inbox,
+  calls `step()`, and pushes new token text via `loop.call_soon_threadsafe`. No locks
+  on scheduler state (single owner thread); one tiny lock guards the in-flight counter.
+- **Locked choices:** backpressure = **bounded queue + HTTP 429** (cap = max_concurrent
+  + max_queue_depth, enforced by an atomic in-flight counter); disconnect cleanup = a
+  new public **`scheduler.cancel(request_id)`** (the one core touch — drops a waiting req
+  or evicts a running one and frees its blocks; unit-tested) called from the SSE
+  generator's `finally`; streaming = **hand-rolled `StreamingResponse`** with `data:`
+  SSE framing (no extra dep); oversized requests rejected **synchronously with 400**
+  (pre-checked against `max_model_len`/`max_blocks` before submit).
+- **Detok:** cumulative-decode-and-diff (`decode(all_ids)[prev_len:]`) — robust to BPE
+  merges / leading-space artefacts that per-token decode breaks.
+- **`/metrics` contract (frozen for 08):** `SchedulerMetrics.as_dict()` + server fields
+  `tokens_per_second` (rolling 5s window), `last_ttft_s`, `peak_vram_mb`, `uptime_s`,
+  `model` — see `serve/schemas.py:MetricsResponse`.
+- **Verified:** 22 unit tests green (no GPU; `create_app(engine=...)` injects a
+  FakeEngine to cover stream/429/400/disconnect→cancel/metrics-shape); live 9B smoke
+  streamed a coherent completion incrementally, `/metrics` showed blocks freed after
+  completion (used_blocks→0) at ~45 tok/s / TTFT ~1.7s; headless `bench.harness
+  --engine batched` still runs unchanged.
+- **Still open (honest):** (1) **sampling is server-level**, not per-request — the
+  scheduler samples with one shared temperature/top_p; per-request sampling needs
+  per-request params in `_sample_next` (documented follow-up; `GenerateRequest` only
+  takes prompt + max_tokens in v1). (2) No auth / multi-tenant / HTTPS (local
+  single-user, per scope). (3) Single served model at a time. (4) `security-review` and
+  `code-review` gates on the request-handling/threading path not yet run.
+
+## 2026-06-28 — Phase 09: benchmarks, correctness & report (one command)
+
+`bench/run_all.py` is the one-command aggregator: three-rung throughput sweep,
+spec-decode γ-sweep (stock + distilled draft), the correctness gate, and the
+plots + `bench/report.md` — all regenerable from committed `bench/results/`.
+
+**The three-rung table must compare the *identical* workload.** First pass put the
+naive-HF rung (exactly `c` requests × max_tokens) next to the Phase-06 batched
+runner in *fixed-pool-of-32 + vary_lengths* mode (constant 2063-token drain) and
+produced a nonsense "0.66× / naive is faster" headline — apples-to-oranges. Fix:
+`run_all` runs **ours in matched mode** — per-c calls with `total_requests == c`,
+no length variance — so both rungs do like-for-like work at every batch width. The
+headline now compares **per-concurrency** (not peak-vs-peak).
+
+**Measured (greedy, 9B, max_tokens=96, RTX 5090):**
+
+| c | naive HF tok/s | ours tok/s | ratio |
+|---|---|---|---|
+| 1 | 29.8 | 44.3 | 1.49× |
+| 8 | 116.0 | 236.8 | 2.04× |
+| 16 | 24.4 | 356.8 | 14.6× |
+| 32 | 23.3 | 461.8 | **19.8×** |
+
+Ours wins at **every** concurrency; the gap widens with load — naive HF has no KV
+cache and collapses past c=8 on quadratic recompute, while continuous batching
+scales. VRAM scales sanely (19→24 GB).
+
+**Correctness gate: PASS @ n=1500** (multi-token per-position TV test, 3 prompts ×
+6 positions, all within the bootstrapped direct-vs-direct null 99th pctile). This
+is the differentiator: spec-decode output is statistically indistinguishable from
+direct target sampling → the rejection-sampling accept rule + residual resampling
+are exact.
+
+**Spec-decode is net-negative on throughput here (honest).** α is healthy (stock
+0.31–0.63, distilled 0.36–0.68) and **draft distillation lifts α** (Δα up to
++0.056, mean +0.048), but end-to-end speedup is ~0.6–0.7× the target-only baseline:
+draft+verify overhead exceeds the acceptance gain at 9B/0.8B on this hardware. The
+*correctness proof* and the *α-lift bridge* are the wins, not the wall-clock.
+
+**vLLM ceiling: deferred** — won't build on Blackwell (sm_120); reported as
+"ceiling pending," never faked (per the phase's rollback rule).
+
+**Still open:** (1) vLLM ceiling pending on sm_120; (2) the matched-mode "ours"
+curve leans on naive HF's no-KV-cache collapse at high c for the 19.8× headline —
+the more conservative, defensible numbers are the 1.5–2.0× at c≤8; (3) spec-decode
+throughput would need a faster draft path / batched accept to go net-positive.
+
+## 2026-06-28 — Phase 10 9B FP8 fallback measurement
+
+Before the 27B adapter was restored, the FP8 path was tested on `merged/9b`.
+`model_loader.load(..., quantize=)` and `ModelRunner.load_target(..., quantize=)`
+kept the default bf16 path unchanged while adding torchao FP8 recipes.
+
+**Measured (9B, single-stream greedy, 128 tok, RTX 5090):**
+
+| variant | decode tok/s | weight footprint | greedy output |
+|---|---|---|---|
+| bf16 | 44.7 | 17.1 GB | — |
+| fp8 (weight-only) | 9.9 (0.22×) | **10.5 GB (0.61×)** | **bit-identical to bf16** |
+| fp8-dynamic | 13.4 (0.30×) | 15.0 GB (0.88×) | coherent, diverges |
+
+**Finding:** FP8 cut memory but slowed single-stream decode on this torchao /
+Blackwell stack. Treat FP8 here as a capacity tool, not a latency win.
+
+## 2026-06-29 — 27B QLoRA adapter restored after crash rebuild
+
+- **Model:** `Qwen/Qwen3.6-27B`, loaded offline from `weights/Qwen3.6-27B`.
+- **Adapter path:** `adapters/27b`.
+- **Config:** `finetune/configs/qwen3_6_27b.toml`.
+- **Checkpoint cadence:** `save_steps = 50` so recovery points are roughly every
+  12-15 minutes on the RTX 5090.
+- **Training:** 20,000 examples, 1 epoch, 625 steps, batch size 1, gradient
+  accumulation 32, effective batch size 32.
+- **Final train loss:** `0.5025`.
+- **Final eval loss:** `0.4971`.
+- **Runtime:** `9,556s` (`2h39m16s`).
+- **Artifacts verified:** final adapter files plus checkpoints through
+  `checkpoint-600`; local adapter directory size is about `6.4G`.
+- **Impact:** The 27B fine-tuned adapter now exists again locally.
+
+## 2026-06-29 — Phase 10 27B FP8 hero: fits, but only as a capacity proof
+
+- **Path used:** `weights/Qwen3.6-27B` loaded with Transformers `TorchAoConfig`
+  + torchao `Float8WeightOnlyConfig`, then `adapters/27b` attached with PEFT.
+- **Why not merged bf16 first:** a merged 27B bf16 model needs ~54 GB. Load-time
+  FP8 plus runtime LoRA avoids creating that artifact.
+- **Served through:** `scripts/hero_fp8.py` -> `ModelRunner.load_target(...,
+  quantize="fp8", adapter="adapters/27b")` -> `ContinuousBatchScheduler`.
+- **Measured command:** `HF_HUB_OFFLINE=1 uv run python scripts/hero_fp8.py
+  --model /home/likhi/inferd/weights/Qwen3.6-27B --adapter
+  /home/likhi/inferd/adapters/27b --variants fp8 --n-prompts 1 --max-tokens 16`.
+- **Result file:** `bench/results/20260629T071918Z_fp8_27b_hero/result.json`.
+- **Load time / footprint:** loaded in `143.4s`; model footprint `28,857 MiB`.
+- **Runtime memory:** `nvidia-smi` peak `32,065 MiB` on a `32,607 MiB` card.
+  This is too tight for batching or long-context experiments.
+- **Decode / TTFT:** `0.121 tok/s`, TTFT `9.35s` for the short prompt. The
+  output was coherent but repetitive (`Paris...` continuation).
+- **Decision:** Count Phase 10 as a local capacity proof, not a latency win or a
+  true standalone merged-FP8 artifact.

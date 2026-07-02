@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!--
+  inferd Dashboard — visual design reference (Overview screen).
+  Source: Claude Design project f7fe0896-e1ec-4cc8-923a-be843d09bce0, file "inferd Dashboard.dc.html".
+  This is the VISUAL SPEC ONLY for phase 08 (plans/08_DASHBOARD_IMPLEMENTATION_PLAN.md).
+  Numbers below are mockup values — in the real React app every number must trace to a live
+  /metrics|/healthz read or the committed benchmark snapshot (see the implementation plan).
+  The original .dc.html wrapper (<x-dc>, support.js, DCLogic <script type="text/x-dc">) and the
+  <sc-if>/<helmet> custom tags have been replaced with plain HTML so this opens in any browser.
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{background:#05081e;font-family:'Plus Jakarta Sans',system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+  ::-webkit-scrollbar{width:10px;height:10px}
+  ::-webkit-scrollbar-thumb{background:rgba(255,255,255,.1);border-radius:6px}
+  @keyframes shimmer{0%{background-position:-360px 0}100%{background-position:360px 0}}
+  @keyframes blink{0%,100%{opacity:1}50%{opacity:.25}}
+</style>
+</head>
+<body>
+
+<div style="min-height:100vh;background:radial-gradient(120% 70% at 82% -8%,#21306e 0%,rgba(33,48,110,0) 44%),radial-gradient(90% 60% at -4% 0%,#142057 0%,rgba(20,32,87,0) 40%),linear-gradient(165deg,#0a1138 0%,#070b26 60%,#05081e 100%);color:#fff;display:grid;grid-template-columns:248px 1fr">
+
+  <!-- sidebar -->
+  <div style="position:sticky;top:0;height:100vh;background:linear-gradient(180deg,rgba(255,255,255,.035),rgba(255,255,255,0));border-right:1px solid rgba(255,255,255,.06);padding:26px 20px;display:flex;flex-direction:column;gap:24px">
+    <div style="display:flex;align-items:center;gap:12px">
+      <span style="width:36px;height:36px;border-radius:12px;background:linear-gradient(135deg,#4318ff,#21d4fd);display:grid;place-items:center;font-family:'JetBrains Mono',monospace;font-weight:800;font-size:18px;color:#fff;box-shadow:0 8px 22px rgba(67,24,255,.5)">i</span>
+      <div><div style="font-weight:800;font-size:17px;letter-spacing:.02em">inferd</div><div style="font-size:9px;letter-spacing:.26em;color:#7e8bb8;font-family:'IBM Plex Mono',monospace">ENGINE</div></div>
+    </div>
+    <nav style="display:flex;flex-direction:column;gap:6px;font-size:14px;font-weight:600">
+      <span style="display:flex;align-items:center;gap:12px;padding:12px 13px;border-radius:14px;background:linear-gradient(135deg,rgba(67,24,255,.55),rgba(0,117,255,.4));box-shadow:0 6px 18px rgba(0,117,255,.25)"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#21d4fd" stroke-width="1.6"><rect x="1.5" y="1.5" width="5" height="5" rx="1"/><rect x="9.5" y="1.5" width="5" height="5" rx="1"/><rect x="1.5" y="9.5" width="5" height="5" rx="1"/><rect x="9.5" y="9.5" width="5" height="5" rx="1"/></svg>Overview</span>
+      <span style="display:flex;align-items:center;gap:12px;padding:12px 13px;border-radius:14px;color:#a6b0d8"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#6f7bab" stroke-width="1.6"><line x1="2" y1="4" x2="14" y2="4"/><line x1="2" y1="8" x2="14" y2="8"/><line x1="2" y1="12" x2="10" y2="12"/></svg>Streams</span>
+      <span style="display:flex;align-items:center;gap:12px;padding:12px 13px;border-radius:14px;color:#a6b0d8"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#6f7bab" stroke-width="1.6"><circle cx="6" cy="8" r="4"/><circle cx="10" cy="8" r="4"/></svg>Spec decode</span>
+      <span style="display:flex;align-items:center;gap:12px;padding:12px 13px;border-radius:14px;color:#a6b0d8"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#6f7bab" stroke-width="1.6"><rect x="3" y="3" width="10" height="10" rx="1.5"/><line x1="6" y1="6" x2="10" y2="6"/><line x1="6" y1="9" x2="10" y2="9"/></svg>Memory</span>
+      <span style="display:flex;align-items:center;gap:12px;padding:12px 13px;border-radius:14px;color:#a6b0d8"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#6f7bab" stroke-width="1.6"><line x1="3" y1="13" x2="3" y2="8"/><line x1="8" y1="13" x2="8" y2="4"/><line x1="13" y1="13" x2="13" y2="10"/></svg>Benchmarks</span>
+      <div style="font-size:10px;letter-spacing:.18em;color:#5e6a98;font-family:'IBM Plex Mono',monospace;margin:12px 4px 2px">ACCOUNT</div>
+      <span style="display:flex;align-items:center;gap:12px;padding:12px 13px;border-radius:14px;color:#a6b0d8"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#6f7bab" stroke-width="1.6"><circle cx="8" cy="5.5" r="3"/><path d="M2.5 14c0-3 2.5-4.5 5.5-4.5s5.5 1.5 5.5 4.5"/></svg>Profile</span>
+      <span style="display:flex;align-items:center;gap:12px;padding:12px 13px;border-radius:14px;color:#a6b0d8"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#6f7bab" stroke-width="1.6"><path d="M9 2.5H4v11h5"/><path d="M11 5.5l3 2.5-3 2.5"/><line x1="14" y1="8" x2="7" y2="8"/></svg>Sign In</span>
+    </nav>
+    <div style="margin-top:auto;border-radius:18px;padding:18px 16px;background:radial-gradient(120% 120% at 100% 0%,#21d4fd 0%,#2152ff 55%,#4318ff 100%);box-shadow:0 14px 30px -8px rgba(33,82,255,.5)">
+      <div style="width:30px;height:30px;border-radius:9px;background:rgba(255,255,255,.18);display:grid;place-items:center;font-weight:800;margin-bottom:12px">?</div>
+      <div style="font-size:13.5px;font-weight:700">Demo capture</div>
+      <div style="font-size:11.5px;color:rgba(255,255,255,.8);margin:3px 0 12px;line-height:1.4">Record the dashboard under load.</div>
+      <div style="background:#070b26;border-radius:11px;text-align:center;padding:9px;font-size:11px;font-weight:700;letter-spacing:.1em;font-family:'IBM Plex Mono',monospace">DOCS</div>
+    </div>
+  </div>
+
+  <!-- main -->
+  <div style="padding:24px 30px 30px;max-width:1440px">
+    <!-- topbar -->
+    <div style="display:flex;align-items:center;margin-bottom:24px">
+      <div>
+        <div style="font-size:11.5px;color:#8b96c4;font-family:'IBM Plex Mono',monospace">Pages / <span style="color:#fff">Dashboard</span></div>
+        <div style="font-size:20px;font-weight:700;margin-top:2px">Overview</div>
+      </div>
+      <div style="margin-left:auto;display:flex;align-items:center;gap:14px">
+        <div style="display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:10px 14px;font-size:12.5px;color:#8b96c4;font-family:'IBM Plex Mono',monospace"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="#8b96c4" stroke-width="1.6"><circle cx="7" cy="7" r="5"/><line x1="11" y1="11" x2="14" y2="14"/></svg>Search /metrics</div>
+        <div style="display:flex;align-items:center;gap:8px;background:rgba(1,181,116,.12);border:1px solid rgba(1,181,116,.3);border-radius:12px;padding:10px 14px;font-size:11.5px;font-weight:700;color:#2ee6a6;font-family:'IBM Plex Mono',monospace"><span style="width:8px;height:8px;border-radius:50%;background:#2ee6a6;box-shadow:0 0 8px #2ee6a6;animation:blink 2.4s infinite"></span>HEALTHY</div>
+        <span style="width:40px;height:40px;border-radius:12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);display:grid;place-items:center"><svg width="17" height="17" viewBox="0 0 18 18" fill="none" stroke="#a6b0d8" stroke-width="1.5"><circle cx="9" cy="9" r="2.5"/><path d="M9 1.5v2M9 14.5v2M1.5 9h2M14.5 9h2M3.7 3.7l1.4 1.4M12.9 12.9l1.4 1.4M14.3 3.7l-1.4 1.4M5.1 12.9l-1.4 1.4"/></svg></span>
+        <span style="width:40px;height:40px;border-radius:12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);display:grid;place-items:center"><svg width="17" height="17" viewBox="0 0 18 18" fill="none" stroke="#a6b0d8" stroke-width="1.5"><path d="M4 7a5 5 0 0 1 10 0c0 4 2 5 2 5H2s2-1 2-5Z"/><path d="M7.5 15a1.6 1.6 0 0 0 3 0"/></svg></span>
+      </div>
+    </div>
+
+    <!-- KPI row -->
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:22px;margin-bottom:22px">
+      <div style="background:linear-gradient(160deg,rgba(255,255,255,.07),rgba(255,255,255,.02));border:1px solid rgba(255,255,255,.08);border-radius:20px;padding:18px;display:flex;align-items:center;gap:14px">
+        <div style="flex:1"><div style="font-size:11.5px;color:#8b96c4;font-weight:600">Tokens / sec</div><div style="font-size:25px;font-weight:800;margin-top:3px;letter-spacing:-.01em">461.8 <span style="font-size:12px;color:#2ee6a6;font-weight:700">+19.8×</span></div></div>
+        <div style="width:48px;height:48px;border-radius:13px;background:linear-gradient(135deg,#0075ff,#21d4fd);display:grid;place-items:center;flex:none;box-shadow:0 8px 18px rgba(0,117,255,.4)"><svg width="21" height="21" viewBox="0 0 20 20" fill="none" stroke="#fff" stroke-width="1.8"><polyline points="3,12 7,8 10,11 17,4"/></svg></div>
+      </div>
+      <div style="background:linear-gradient(160deg,rgba(255,255,255,.07),rgba(255,255,255,.02));border:1px solid rgba(255,255,255,.08);border-radius:20px;padding:18px;display:flex;align-items:center;gap:14px">
+        <div style="flex:1"><div style="font-size:11.5px;color:#8b96c4;font-weight:600">TTFT</div><div style="font-size:25px;font-weight:800;margin-top:3px;letter-spacing:-.01em">0.18s <span style="font-size:12px;color:#2ee6a6;font-weight:700">−12%</span></div></div>
+        <div style="width:48px;height:48px;border-radius:13px;background:linear-gradient(135deg,#0075ff,#21d4fd);display:grid;place-items:center;flex:none;box-shadow:0 8px 18px rgba(0,117,255,.4)"><svg width="21" height="21" viewBox="0 0 20 20" fill="none" stroke="#fff" stroke-width="1.8"><circle cx="10" cy="10" r="7"/><path d="M10 6v4l3 2"/></svg></div>
+      </div>
+      <div style="background:linear-gradient(160deg,rgba(255,255,255,.07),rgba(255,255,255,.02));border:1px solid rgba(255,255,255,.08);border-radius:20px;padding:18px;display:flex;align-items:center;gap:14px">
+        <div style="flex:1"><div style="font-size:11.5px;color:#8b96c4;font-weight:600">Draft α</div><div style="font-size:25px;font-weight:800;margin-top:3px;letter-spacing:-.01em">0.66 <span style="font-size:12px;color:#2ee6a6;font-weight:700">+0.05</span></div></div>
+        <div style="width:48px;height:48px;border-radius:13px;background:linear-gradient(135deg,#0075ff,#21d4fd);display:grid;place-items:center;flex:none;box-shadow:0 8px 18px rgba(0,117,255,.4);font-weight:800;font-size:20px">α</div>
+      </div>
+      <div style="background:linear-gradient(160deg,rgba(255,255,255,.07),rgba(255,255,255,.02));border:1px solid rgba(255,255,255,.08);border-radius:20px;padding:18px;display:flex;align-items:center;gap:14px">
+        <div style="flex:1"><div style="font-size:11.5px;color:#8b96c4;font-weight:600">Peak VRAM</div><div style="font-size:25px;font-weight:800;margin-top:3px;letter-spacing:-.01em">22.4 <span style="font-size:12px;color:#8b96c4;font-weight:700">/32 GiB</span></div></div>
+        <div style="width:48px;height:48px;border-radius:13px;background:linear-gradient(135deg,#0075ff,#21d4fd);display:grid;place-items:center;flex:none;box-shadow:0 8px 18px rgba(0,117,255,.4)"><svg width="21" height="21" viewBox="0 0 20 20" fill="none" stroke="#fff" stroke-width="1.8"><rect x="4" y="4" width="12" height="12" rx="2"/><line x1="8" y1="1.5" x2="8" y2="4"/><line x1="12" y1="1.5" x2="12" y2="4"/><line x1="8" y1="16" x2="8" y2="18.5"/><line x1="12" y1="16" x2="12" y2="18.5"/></svg></div>
+      </div>
+    </div>
+
+    <!-- middle row -->
+    <div style="display:grid;grid-template-columns:1.45fr 1fr 1.15fr;gap:22px;margin-bottom:22px">
+      <div style="position:relative;border-radius:20px;overflow:hidden;padding:26px;background:radial-gradient(130% 130% at 90% 10%,#21d4fd 0%,#2152ff 45%,#3a1d9c 100%);box-shadow:0 16px 40px -16px rgba(33,82,255,.5)">
+        <div style="position:absolute;inset:0;background:radial-gradient(60% 80% at 15% 110%,rgba(255,255,255,.18),transparent 60%);pointer-events:none"></div>
+        <div style="position:relative">
+          <div style="font-size:11.5px;letter-spacing:.04em;color:rgba(255,255,255,.78);font-weight:600">inferd engine · live</div>
+          <div style="font-size:36px;font-weight:800;letter-spacing:-.02em;margin:8px 0 4px;line-height:1.05">19.8× over the<br>naive HF floor</div>
+          <div style="font-size:13px;color:rgba(255,255,255,.82)">at 32 concurrent requests · continuous batching</div>
+          <div style="display:inline-flex;align-items:center;gap:7px;margin-top:20px;font-size:12.5px;font-weight:700">View demo capture <span style="font-size:15px">→</span></div>
+        </div>
+      </div>
+      <div style="background:linear-gradient(160deg,rgba(255,255,255,.07),rgba(255,255,255,.02));border:1px solid rgba(255,255,255,.08);border-radius:20px;padding:22px;display:flex;flex-direction:column">
+        <div style="font-size:15px;font-weight:700">Acceptance Rate</div>
+        <div style="font-size:11.5px;color:#8b96c4">draft vs target · α</div>
+        <div style="flex:1;display:grid;place-items:center;margin-top:6px">
+          <svg viewBox="0 0 180 110" style="width:100%;max-width:210px">
+            <defs><linearGradient id="accg" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#2152ff"/><stop offset="1" stop-color="#21d4fd"/></linearGradient></defs>
+            <path d="M20,95 A70,70 0 0 1 160,95" fill="none" stroke="rgba(255,255,255,.1)" stroke-width="11" stroke-linecap="round"/>
+            <path d="M20,95 A70,70 0 0 1 128.7,33.4" fill="none" stroke="url(#accg)" stroke-width="11" stroke-linecap="round" style="filter:drop-shadow(0 0 6px rgba(33,212,253,.6))"/>
+            <circle cx="90" cy="95" r="19" fill="#0a1138" stroke="rgba(255,255,255,.12)"/>
+            <text x="90" y="100" text-anchor="middle" fill="#21d4fd" font-family="'Plus Jakarta Sans',sans-serif" font-size="15" font-weight="800">α</text>
+          </svg>
+        </div>
+        <div style="background:#0a1138;border:1px solid rgba(255,255,255,.06);border-radius:14px;padding:11px 14px;display:flex;justify-content:space-between;align-items:center">
+          <span style="font-size:10.5px;color:#8b96c4">0</span>
+          <div style="text-align:center"><div style="font-size:23px;font-weight:800">0.66</div><div style="font-size:10px;color:#8b96c4">exact rejection rule</div></div>
+          <span style="font-size:10.5px;color:#8b96c4">1.00</span>
+        </div>
+      </div>
+      <div style="background:linear-gradient(160deg,rgba(255,255,255,.07),rgba(255,255,255,.02));border:1px solid rgba(255,255,255,.08);border-radius:20px;padding:22px;display:grid;grid-template-columns:1fr auto;gap:16px;align-items:center">
+        <div style="display:flex;flex-direction:column;gap:12px">
+          <div style="font-size:15px;font-weight:700">Engine Health</div>
+          <div style="background:#0a1138;border:1px solid rgba(255,255,255,.06);border-radius:14px;padding:11px 13px"><div style="font-size:10.5px;color:#8b96c4">Headroom</div><div style="font-size:18px;font-weight:800;margin-top:1px">9.6 GiB</div></div>
+          <div style="background:#0a1138;border:1px solid rgba(255,255,255,.06);border-radius:14px;padding:11px 13px"><div style="font-size:10.5px;color:#8b96c4">Free blocks</div><div style="font-size:18px;font-weight:800;margin-top:1px">1636</div></div>
+        </div>
+        <svg viewBox="0 0 120 120" style="width:122px;height:122px">
+          <defs><linearGradient id="ringg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#21d4fd"/><stop offset="1" stop-color="#01b574"/></linearGradient></defs>
+          <circle cx="60" cy="60" r="46" fill="none" stroke="rgba(255,255,255,.1)" stroke-width="10"/>
+          <circle cx="60" cy="60" r="46" fill="none" stroke="url(#ringg)" stroke-width="10" stroke-linecap="round" stroke-dasharray="268.9 289" transform="rotate(-90 60 60)" style="filter:drop-shadow(0 0 6px rgba(1,181,116,.5))"/>
+          <text x="60" y="58" text-anchor="middle" fill="#fff" font-family="'Plus Jakarta Sans',sans-serif" font-size="31" font-weight="800">9.3</text>
+          <text x="60" y="76" text-anchor="middle" fill="#8b96c4" font-family="'Plus Jakarta Sans',sans-serif" font-size="9.5">health score</text>
+        </svg>
+      </div>
+    </div>
+
+    <!-- big charts row -->
+    <div style="display:grid;grid-template-columns:1.6fr 1fr;gap:22px;margin-bottom:22px">
+      <div style="background:linear-gradient(160deg,rgba(255,255,255,.07),rgba(255,255,255,.02));border:1px solid rgba(255,255,255,.08);border-radius:20px;padding:22px 24px">
+        <div style="font-size:16px;font-weight:700">Throughput overview</div>
+        <div style="font-size:12px;color:#8b96c4;margin-bottom:6px"><span style="color:#2ee6a6;font-weight:700">+19.8×</span> at c=32 vs naive HF</div>
+        <svg viewBox="0 0 760 290" style="width:100%;height:auto;display:block">
+          <defs><linearGradient id="area3" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#21d4fd" stop-opacity=".42"/><stop offset="1" stop-color="#21d4fd" stop-opacity="0"/></linearGradient></defs>
+          <g stroke="rgba(255,255,255,.06)" stroke-width="1"><line x1="40" y1="30" x2="740" y2="30"/><line x1="40" y1="85" x2="740" y2="85"/><line x1="40" y1="140" x2="740" y2="140"/><line x1="40" y1="195" x2="740" y2="195"/><line x1="40" y1="250" x2="740" y2="250"/></g>
+          <g fill="#6f7bab" font-family="'IBM Plex Mono',monospace" font-size="10" text-anchor="end"><text x="32" y="253">0</text><text x="32" y="198">120</text><text x="32" y="143">240</text><text x="32" y="88">360</text><text x="32" y="33">480</text></g>
+          <path fill="none" stroke="rgba(255,255,255,.32)" stroke-width="2.5" stroke-dasharray="6 4" d="M40,236.3 C98,236.3 157,201.9 215,201.9 C273,201.9 332,196.8 390,196.8 C448,196.8 507,238.8 565,238.8 C623,238.8 682,239.3 740,239.3"/>
+          <path fill="url(#area3)" d="M40,229.7 C98,229.7 157,185.1 215,185.1 C273,185.1 332,141.5 390,141.5 C448,141.5 507,86.5 565,86.5 C623,86.5 682,38.4 740,38.4 L740,250 L40,250 Z"/>
+          <path fill="none" stroke="#21d4fd" stroke-width="3.5" stroke-linecap="round" d="M40,229.7 C98,229.7 157,185.1 215,185.1 C273,185.1 332,141.5 390,141.5 C448,141.5 507,86.5 565,86.5 C623,86.5 682,38.4 740,38.4" style="filter:drop-shadow(0 4px 10px rgba(33,212,253,.45))"/>
+          <circle cx="740" cy="38.4" r="5" fill="#21d4fd" stroke="#0a1138" stroke-width="2"/>
+          <g fill="#6f7bab" font-family="'IBM Plex Mono',monospace" font-size="10" text-anchor="middle"><text x="40" y="272">1</text><text x="215" y="272">4</text><text x="390" y="272">8</text><text x="565" y="272">16</text><text x="740" y="272">32</text></g>
+        </svg>
+      </div>
+      <div style="background:linear-gradient(160deg,rgba(255,255,255,.07),rgba(255,255,255,.02));border:1px solid rgba(255,255,255,.08);border-radius:20px;padding:22px 24px;display:flex;flex-direction:column">
+        <div style="background:linear-gradient(160deg,#102a6b,#0c1746);border-radius:16px;padding:16px 16px 10px;box-shadow:inset 0 0 0 1px rgba(255,255,255,.05)">
+          <svg viewBox="0 0 320 170" style="width:100%;height:auto;display:block">
+            <g stroke="rgba(255,255,255,.08)" stroke-width="1"><line x1="26" y1="20" x2="316" y2="20"/><line x1="26" y1="58" x2="316" y2="58"/><line x1="26" y1="96" x2="316" y2="96"/><line x1="26" y1="134" x2="316" y2="134"/></g>
+            <g fill="#7e8bb8" font-family="'IBM Plex Mono',monospace" font-size="8" text-anchor="end"><text x="22" y="137">0</text><text x="22" y="99">200</text><text x="22" y="61">400</text><text x="22" y="23">500</text></g>
+            <defs><linearGradient id="barg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff"/><stop offset="1" stop-color="#7fd2ff"/></linearGradient></defs>
+            <g fill="url(#barg)"><rect x="40" y="121" width="24" height="13" rx="3"/><rect x="86" y="107" width="24" height="27" rx="3"/><rect x="132" y="91" width="24" height="43" rx="3"/><rect x="178" y="63" width="24" height="71" rx="3"/><rect x="224" y="33" width="24" height="101" rx="3"/><rect x="270" y="24" width="24" height="110" rx="3"/></g>
+            <g fill="#7e8bb8" font-family="'IBM Plex Mono',monospace" font-size="8" text-anchor="middle"><text x="52" y="148">1</text><text x="98" y="148">4</text><text x="144" y="148">8</text><text x="190" y="148">16</text><text x="236" y="148">32</text></g>
+          </svg>
+        </div>
+        <div style="font-size:14.5px;font-weight:700;margin:14px 0 2px">Engine activity</div>
+        <div style="font-size:11.5px;color:#8b96c4;margin-bottom:12px"><span style="color:#2ee6a6;font-weight:700">+23%</span> vs last run</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px 12px">
+          <div><div style="font-size:11px;color:#8b96c4">Iterations</div><div style="font-size:16px;font-weight:800;margin:2px 0 4px">38,902</div><div style="height:3px;border-radius:2px;background:linear-gradient(90deg,#0075ff,#21d4fd)"></div></div>
+          <div><div style="font-size:11px;color:#8b96c4">Tokens</div><div style="font-size:16px;font-weight:800;margin:2px 0 4px">1.29M</div><div style="height:3px;border-radius:2px;background:linear-gradient(90deg,#0075ff,#21d4fd);width:82%"></div></div>
+          <div><div style="font-size:11px;color:#8b96c4">Sequences</div><div style="font-size:16px;font-weight:800;margin:2px 0 4px">1,304</div><div style="height:3px;border-radius:2px;background:linear-gradient(90deg,#0075ff,#21d4fd);width:64%"></div></div>
+          <div><div style="font-size:11px;color:#8b96c4">Blocks used</div><div style="font-size:16px;font-weight:800;margin:2px 0 4px">412</div><div style="height:3px;border-radius:2px;background:linear-gradient(90deg,#0075ff,#21d4fd);width:20%"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- bottom row -->
+    <div style="display:grid;grid-template-columns:1.6fr 1fr;gap:22px">
+      <div style="background:linear-gradient(160deg,rgba(255,255,255,.07),rgba(255,255,255,.02));border:1px solid rgba(255,255,255,.08);border-radius:20px;padding:22px 24px">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:14px"><span style="font-size:16px;font-weight:700">Active sequences</span><span style="font-size:11.5px;color:#2ee6a6;font-weight:700">16 streaming</span></div>
+        <div style="display:grid;grid-template-columns:1fr 70px 100px 128px;gap:10px;font-size:10px;letter-spacing:.1em;color:#6f7bab;font-family:'IBM Plex Mono',monospace;padding-bottom:10px;border-bottom:1px solid rgba(255,255,255,.07)"><span>REQUEST</span><span>TOKENS</span><span>STATUS</span><span>COMPLETION</span></div>
+        <div style="display:grid;grid-template-columns:1fr 70px 100px 128px;gap:10px;align-items:center;padding:13px 0;border-bottom:1px solid rgba(255,255,255,.05);font-size:13px"><span style="font-weight:600">summarize transcript…</span><span style="font-family:'IBM Plex Mono',monospace;color:#a6b0d8">256</span><span style="font-size:11px;font-weight:700;color:#2ee6a6">● streaming</span><div style="display:flex;align-items:center;gap:8px"><div style="flex:1;height:6px;border-radius:3px;background:rgba(255,255,255,.08);overflow:hidden"><div style="width:78%;height:100%;background:linear-gradient(90deg,#0075ff,#21d4fd)"></div></div><span style="font-size:11px;color:#a6b0d8;font-family:'IBM Plex Mono',monospace">78%</span></div></div>
+        <div style="display:grid;grid-template-columns:1fr 70px 100px 128px;gap:10px;align-items:center;padding:13px 0;border-bottom:1px solid rgba(255,255,255,.05);font-size:13px"><span style="font-weight:600">rewrite in formal tone</span><span style="font-family:'IBM Plex Mono',monospace;color:#a6b0d8">128</span><span style="font-size:11px;font-weight:700;color:#7fd2ff">● done</span><div style="display:flex;align-items:center;gap:8px"><div style="flex:1;height:6px;border-radius:3px;background:rgba(255,255,255,.08);overflow:hidden"><div style="width:100%;height:100%;background:linear-gradient(90deg,#0075ff,#21d4fd)"></div></div><span style="font-size:11px;color:#a6b0d8;font-family:'IBM Plex Mono',monospace">100%</span></div></div>
+        <div style="display:grid;grid-template-columns:1fr 70px 100px 128px;gap:10px;align-items:center;padding:13px 0;border-bottom:1px solid rgba(255,255,255,.05);font-size:13px"><span style="font-weight:600">extract JSON fields</span><span style="font-family:'IBM Plex Mono',monospace;color:#a6b0d8">192</span><span style="font-size:11px;font-weight:700;color:#2ee6a6">● streaming</span><div style="display:flex;align-items:center;gap:8px"><div style="flex:1;height:6px;border-radius:3px;background:rgba(255,255,255,.08);overflow:hidden"><div style="width:54%;height:100%;background:linear-gradient(90deg,#0075ff,#21d4fd)"></div></div><span style="font-size:11px;color:#a6b0d8;font-family:'IBM Plex Mono',monospace">54%</span></div></div>
+        <div style="display:grid;grid-template-columns:1fr 70px 100px 128px;gap:10px;align-items:center;padding:13px 0;font-size:13px"><span style="font-weight:600">translate to German</span><span style="font-family:'IBM Plex Mono',monospace;color:#a6b0d8">96</span><span style="font-size:11px;font-weight:700;color:#ffb86a">● queued</span><div style="display:flex;align-items:center;gap:8px"><div style="flex:1;height:6px;border-radius:3px;background:rgba(255,255,255,.08);overflow:hidden"><div style="width:4%;height:100%;background:linear-gradient(90deg,#0075ff,#21d4fd)"></div></div><span style="font-size:11px;color:#a6b0d8;font-family:'IBM Plex Mono',monospace">0%</span></div></div>
+      </div>
+      <div style="background:linear-gradient(160deg,rgba(255,255,255,.07),rgba(255,255,255,.02));border:1px solid rgba(255,255,255,.08);border-radius:20px;padding:22px 24px">
+        <div style="font-size:16px;font-weight:700">Spec-decode</div>
+        <div style="font-size:11.5px;color:#8b96c4;margin-bottom:18px"><span style="color:#2ee6a6;font-weight:700">+0.05</span> α-lift from distillation</div>
+        <div style="display:flex;flex-direction:column;gap:0">
+          <div style="display:flex;gap:13px"><div style="display:flex;flex-direction:column;align-items:center"><span style="width:11px;height:11px;border-radius:50%;background:#01b574;box-shadow:0 0 8px rgba(1,181,116,.6)"></span><span style="width:2px;flex:1;background:rgba(255,255,255,.1)"></span></div><div style="padding-bottom:18px"><div style="font-size:13px;font-weight:700">Correctness gate PASS</div><div style="font-size:11.5px;color:#8b96c4">distribution-equivalence · n=1500</div></div></div>
+          <div style="display:flex;gap:13px"><div style="display:flex;flex-direction:column;align-items:center"><span style="width:11px;height:11px;border-radius:50%;background:#21d4fd;box-shadow:0 0 8px rgba(33,212,253,.6)"></span><span style="width:2px;flex:1;background:rgba(255,255,255,.1)"></span></div><div style="padding-bottom:18px"><div style="font-size:13px;font-weight:700">α settled 0.66</div><div style="font-size:11.5px;color:#8b96c4">0.8B draft · band 0.63–0.68</div></div></div>
+          <div style="display:flex;gap:13px"><div style="display:flex;flex-direction:column;align-items:center"><span style="width:11px;height:11px;border-radius:50%;background:#4318ff;box-shadow:0 0 8px rgba(67,24,255,.6)"></span><span style="width:2px;flex:1;background:rgba(255,255,255,.1)"></span></div><div style="padding-bottom:18px"><div style="font-size:13px;font-weight:700">Δα +0.05</div><div style="font-size:11.5px;color:#8b96c4">draft distilled on target outputs</div></div></div>
+          <div style="display:flex;gap:13px"><div style="display:flex;flex-direction:column;align-items:center"><span style="width:11px;height:11px;border-radius:50%;background:#ffb86a;box-shadow:0 0 8px rgba(255,184,106,.6)"></span></div><div><div style="font-size:13px;font-weight:700;color:#ffce9e">Net throughput 0.6–0.7×</div><div style="font-size:11.5px;color:#8b96c4">honest: α-lift + correctness are the wins, not raw speed</div></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- connection states (reference) -->
+    <div style="margin-top:26px">
+      <div style="font-size:11px;letter-spacing:.16em;color:#5e6a98;font-family:'IBM Plex Mono',monospace;margin-bottom:12px">CONNECTION STATES</div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:18px">
+        <div style="background:linear-gradient(160deg,rgba(255,255,255,.06),rgba(255,255,255,.02));border:1px solid rgba(255,255,255,.08);border-radius:18px;padding:16px 18px">
+          <div style="font-size:11px;color:#8b96c4;font-weight:600;margin-bottom:11px">Connecting…</div>
+          <div style="height:10px;border-radius:5px;background:linear-gradient(90deg,rgba(255,255,255,.05),rgba(127,210,255,.18),rgba(255,255,255,.05));background-size:360px 100%;animation:shimmer 1.4s infinite;margin-bottom:9px"></div>
+          <div style="height:10px;width:62%;border-radius:5px;background:linear-gradient(90deg,rgba(255,255,255,.05),rgba(127,210,255,.18),rgba(255,255,255,.05));background-size:360px 100%;animation:shimmer 1.4s infinite"></div>
+        </div>
+        <div style="background:linear-gradient(160deg,rgba(255,255,255,.06),rgba(255,255,255,.02));border:1px solid rgba(255,255,255,.08);border-radius:18px;padding:16px 18px">
+          <div style="font-size:11px;color:#8b96c4;font-weight:600;margin-bottom:8px">No traffic</div>
+          <div style="font-size:15px;font-weight:700;color:#dbe2ff">Engine idle</div>
+          <div style="font-size:12px;color:#8b96c4;margin-top:3px">Send a request to begin streaming.</div>
+        </div>
+        <div style="background:linear-gradient(160deg,rgba(227,26,26,.12),rgba(227,26,26,.03));border:1px solid rgba(227,26,26,.3);border-radius:18px;padding:16px 18px">
+          <div style="font-size:11px;color:#ff7a7a;font-weight:700;margin-bottom:8px">● Disconnected</div>
+          <div style="font-size:15px;font-weight:700;color:#ffd0d0">/metrics unreachable</div>
+          <div style="font-size:12px;color:#d89a9a;margin-top:3px">Reconnecting to :8000…</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

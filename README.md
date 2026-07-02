@@ -1,6 +1,6 @@
 # inferd
 
-> **Work in progress.** This repository is under active development. APIs, benchmarks, and documentation may change without notice. Several planned components (`serve/`, `dashboard/`, FP8 hero demo) are not implemented yet. Treat numbers in `bench/results/` as snapshots from specific runs, not final portfolio claims. See [Current status](#current-status) for what exists today.
+> **Status:** the full pipeline — fine-tuning, engine, serving, benchmarks, the FP8 27B hero, and the live **React dashboard** — is built and measured. Every number below traces to a `result.json` under `bench/results/` and regenerates from one command. The only piece still ahead is the under-load **demo capture** (`docs/demo.md`). See [Current status](#current-status).
 
 A from-scratch local LLM inference stack: **QLoRA fine-tuning → speculative decoding → paged KV-cache → continuous batching**, served via FastAPI with a React metrics dashboard. Benchmarked against a naive Hugging Face baseline and vLLM as the reference ceiling. Runs fully offline on a single RTX 5090 — no cloud APIs, no external inference dependencies.
 
@@ -15,8 +15,8 @@ The thesis is depth on both ends: fine-tune a showcase model *and* serve it thro
 | **Fine-tuning** | QLoRA SFT of a 27B showpiece + 9B engine target; draft distillation for acceptance-rate lift | Implemented (`finetune/`) |
 | **Inference core** | Exact speculative decoding, paged KV-cache, iteration-level continuous batching | Implemented (`core/`) |
 | **Benchmarking** | Headless harness, distribution-equivalence test, throughput-vs-concurrency curves | Implemented (`bench/`) |
-| **Serving** | FastAPI async queue, SSE token streaming, `/metrics` and `/healthz` | Planned (phase 07) |
-| **Dashboard** | Live tokens/sec, TTFT, draft acceptance rate α, VRAM, concurrency | Planned (phase 08) |
+| **Serving** | FastAPI async queue, SSE token streaming, `/metrics` and `/healthz` | Implemented (`serve/`) |
+| **Dashboard** | Live tokens/sec, TTFT, draft acceptance rate α, VRAM, concurrency | Implemented (`dashboard/`) |
 
 ---
 
@@ -52,7 +52,7 @@ Weights, adapters, merged checkpoints, and datasets are gitignored and live unde
 ```mermaid
 flowchart TB
     dash["Dashboard<br/>React + Vite · planned<br/>tokens/sec · TTFT · α · VRAM"]
-    serve["Serving<br/>FastAPI + SSE · planned<br/>queue · scheduler · streaming"]
+    serve["Serving<br/>FastAPI + SSE<br/>queue · scheduler · streaming"]
     core["Inference core · live<br/>spec decode · paged KV · batching<br/>model runner (target + draft, bf16)"]
     ft["Fine-tuning · live<br/>Unsloth QLoRA · golden eval · export · draft KD"]
 
@@ -64,7 +64,7 @@ flowchart TB
 | Layer | Package | Status |
 |-------|---------|--------|
 | Dashboard | `dashboard/` | Planned |
-| Serving | `serve/` | Planned |
+| Serving | `serve/` | Live |
 | Inference core | `core/` | Live |
 | Fine-tuning | `finetune/` | Live |
 | Benchmarks | `bench/` | Live (headless; no HTTP required) |
@@ -105,7 +105,7 @@ inferd/
 └── uv.lock                 # Pinned dependency lockfile
 ```
 
-Planned but not yet present: `serve/`, `dashboard/`, `bench/run_all.py`.
+`dashboard/` is present (React + Vite + TS); see [`dashboard/`](dashboard/).
 
 `core/model_runner.py` is the shared hot file — phases extend it via new methods; callers treat `kv` as an opaque handle.
 
@@ -151,7 +151,7 @@ if all γ accepted:
 |------|---------|
 | Fine-tuning | Unsloth first; Axolotl / Llama-Factory / ms-swift / TRL+PEFT as fallbacks. bitsandbytes 4-bit NF4. **No GemForge.** |
 | Core | Python, PyTorch (Blackwell CUDA 12.8+), Triton (paged attention), Hugging Face Transformers |
-| Serving | FastAPI + uvicorn, async queue, SSE streaming *(planned)* |
+| Serving | FastAPI + uvicorn, async queue, SSE streaming |
 | Dashboard | React + Vite, Recharts/uPlot *(planned)* |
 | Environment | WSL2 Ubuntu, `uv` lockfile, everything pinned |
 | Reference | vLLM (ceiling only) |
@@ -162,35 +162,45 @@ FP8 is the **one quantization exception**, scoped to the fine-tuned 27B hero dem
 
 ## Current status
 
-Phases **01–06** have working code; **07–11** (serving, dashboard, aggregated reporting, FP8 hero, portfolio docs) are still ahead.
+**All phases 01–11 are code-complete**, including the live dashboard (08), which passes
+build + lint. The only piece still ahead is the under-load **demo capture** (`docs/demo.md`).
 
 | Phase | Deliverable | Status |
 |-------|-------------|--------|
 | 01 — Environment | Pinned WSL2 + CUDA stack; smoke test | Done |
 | 02 — Harness | Reproducible HF floor + vLLM ceiling | Done |
-| 03 — QLoRA | Fine-tuned 9B + 27B adapters; golden-set eval | Done (9B merged; 27B merge deferred) |
+| 03 — QLoRA | Fine-tuned 9B + 27B adapters; golden-set eval | Done (9B merged; 27B adapter restored) |
 | 04 — Spec decode | Exact rejection sampling + correctness gate; α-lift | Done (correctness proven; net speedup negative on hybrid model) |
 | 05 — Paged KV | Block allocator + reference paged attention | Done (runtime persistent cache TBD) |
 | 06 — Batching | Iteration-level scheduler + batched decode | Done |
-| 07 — Serving | FastAPI + SSE | Not started |
-| 08 — Dashboard | Live metrics UI | Not started |
-| 09 — Bench/report | Aggregated plots; one-command reproduce | Not started |
-| 10 — FP8 hero | Fine-tuned 27B via FP8 | Not started |
-| 11 — Docs | Portfolio-ready README with final numbers | In progress |
+| 07 — Serving | FastAPI + SSE | Done |
+| 08 — Dashboard | Live metrics UI | Done (builds + lints; demo capture pending) |
+| 09 — Bench/report | Aggregated plots; one-command reproduce | Done |
+| 10 — FP8 hero | Fine-tuned 27B via FP8 | Done as capacity proof; latency impractical |
+| 11 — Docs | Portfolio-ready README with final numbers | Done (demo capture still pending) |
 
-### Early results (preliminary)
+### Results
 
-These are honest snapshots from `bench/results/` — not final headline numbers.
+Every figure below regenerates with `uv run python bench/run_all.py --plots`; plots land in `bench/results/plots/` and the full table in [`bench/report.md`](bench/report.md).
+
+**Throughput vs concurrency — matched workload, naive HF floor vs the inferd engine (9B, tok/s):**
+
+| concurrency | 1 | 4 | 8 | 16 | 32 |
+|---|---|---|---|---|---|
+| naive HF | 29.8 | 104.9 | 116.0 | 24.4 | 23.3 |
+| **inferd** | **44.3** | **141.6** | **236.8** | **356.8** | **461.8** |
+
+- Continuous batching wins at **every** concurrency; **19.8× over the naive HF floor at c=32**, where HF collapses on KV-cache-less recompute.
 
 | Experiment | Result | Notes |
 |------------|--------|-------|
-| HF naive floor (9B) | ~28 tok/s single-stream | `bench/results/20260626T123109Z_hf_Qwen3.5-9B/` |
-| Spec decode (stock 0.8B draft) | α ≈ 0.62–0.69; **0.5× baseline throughput** | Hybrid linear-attention replay tax; see phase 04 decision |
-| Draft distillation α-lift | Modest lift at γ=8 (+0.08 α); throughput unchanged | Replay tax dominates, not α |
-| Continuous batching (9B) | **~35 → 123 → 199 tok/s** at c=1/4/8 | Real batched decode; `DECISIONS.md` 2026-06-28 |
+| Spec-decode correctness | **✅ PASS** distribution-equivalence gate, n=1500 | Per-position TV within bootstrapped null; proves exact accept rule + residual resample |
+| Spec decode (0.8B draft) | α ≈ 0.63–0.68; **0.6–0.7× baseline throughput** | Hybrid linear-attention replay tax; correctness + α-lift are the wins, not net speed |
+| Draft distillation α-lift | Δα up to **+0.056** (mean +0.048) | Replay tax dominates net throughput, not α |
 | Paged KV equivalence | max\|Δlogit\| = 0 on model-level compute gate | Reference path; no Triton kernel yet |
+| 27B FP8 hero | Fine-tuned 27B fits at **28.9 GiB** (peak 32.1/32.6 GiB on-card); **0.121 tok/s** | Capacity proof — FP8 halves weight bytes so the 27B fits the 5090; not a latency win |
 
-**Known gaps:** no persistent paged runtime cache (KV still in HF caches during generation); batched speculative decoding not implemented; vLLM ceiling runner is best-effort and may defer on sm_120.
+**Honest gaps:** no persistent paged runtime cache; no batched speculative decoding; the 27B FP8 hero is a capacity/coherence proof, not a usable latency point; vLLM ceiling deferred on sm_120 (subprocess failed on Blackwell — reported, not faked).
 
 ---
 
@@ -227,6 +237,18 @@ Results are written to `bench/results/<timestamp>_<engine>_<model>/result.json` 
 Build order: **harness → QLoRA → spec-decode (+ α-lift) → paged cache → continuous batching → serving → dashboard → FP8 hero**. Each phase is a defensible stopping point.
 
 Development uses one git worktree per phase (`phase-NN-slug` → merge into `dev` in order). See `plans/00_MASTER_ORCHESTRATION.md` for cross-phase rules.
+
+---
+
+## Future plans
+
+Not committed — early ideation and follow-ups beyond the v1 CUDA stack:
+
+- **Apple Silicon (MLX)** — ideation stage; exploring a Metal/MLX port so the same pipeline can run on Mac hardware without the WSL2 + CUDA dependency.
+- **Persistent paged runtime KV cache** — wire the phase-05 block allocator into live decode instead of stacking HF caches.
+- **Batched speculative decoding** — extend accept/replay through the continuous batching scheduler.
+- **vLLM ceiling on Blackwell** — re-run when sm_120 wheels are available.
+- **Triton paged-attention kernel** — replace the reference Python path with a fused kernel.
 
 ---
 
