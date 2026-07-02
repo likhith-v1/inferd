@@ -84,7 +84,7 @@ export default function SpecDecode() {
             <SourceBadge kind="benchmark" />
           </div>
           <strong className={correctness?.passed ? "pass-text" : "warn-text"}>
-            {correctness?.passed ? "PASS" : "not available"}
+            {correctness ? (correctness.passed ? "PASS" : "FAIL") : "not available"}
           </strong>
           <dl className="fact-grid">
             <div><dt>n</dt><dd>{correctness?.n ?? "—"}</dd></div>
@@ -148,4 +148,3 @@ export default function SpecDecode() {
     </div>
   );
 }
-

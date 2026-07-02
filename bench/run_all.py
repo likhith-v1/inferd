@@ -21,14 +21,18 @@ import json
 import subprocess
 import sys
 import time
+import os
 from pathlib import Path
 
+ROOT = Path(__file__).resolve().parent.parent
 RESULTS = Path(__file__).parent / "results"
 PLOTS = RESULTS / "plots"
 REPORT = Path(__file__).parent / "report.md"
-ABS_TARGET = "/home/likhi/inferd/merged/9b"
-ABS_DRAFT = "/home/likhi/inferd/weights/Qwen3.5-0.8B"
-ABS_DRAFT_ADAPTER = "/home/likhi/inferd/adapters/draft-distilled"
+DEFAULT_TARGET = Path(os.environ.get("INFERD_BENCH_TARGET", ROOT / "merged" / "9b"))
+DEFAULT_DRAFT = Path(os.environ.get("INFERD_BENCH_DRAFT", ROOT / "weights" / "Qwen3.5-0.8B"))
+DEFAULT_DRAFT_ADAPTER = Path(
+    os.environ.get("INFERD_BENCH_DRAFT_ADAPTER", ROOT / "adapters" / "draft-distilled")
+)
 
 
 # --------------------------------------------------------------------------- #
@@ -72,8 +76,14 @@ def latest_spec(label: str):
 # --------------------------------------------------------------------------- #
 # rung execution
 # --------------------------------------------------------------------------- #
-def run_rungs(rungs: list[str], concurrency: list[int], seed: int,
-              max_tokens: int, profile: str) -> None:
+def run_rungs(
+    rungs: list[str],
+    concurrency: list[int],
+    seed: int,
+    max_tokens: int,
+    profile: str,
+    target_path: str | Path,
+) -> None:
     if "hf" in rungs:
         print("\n" + "=" * 70 + "\n[run_all] RUNG 1/3 — naive HF floor\n" + "=" * 70)
         from bench.runners.hf import run as hf_run
@@ -82,7 +92,7 @@ def run_rungs(rungs: list[str], concurrency: list[int], seed: int,
 
     if "ours" in rungs:
         print("\n" + "=" * 70 + "\n[run_all] RUNG 2/3 — ours (continuous batching, matched workload)\n" + "=" * 70)
-        _run_ours_matched(concurrency, seed, max_tokens, profile)
+        _run_ours_matched(concurrency, seed, max_tokens, profile, target_path)
 
     if "vllm" in rungs:
         print("\n" + "=" * 70 + "\n[run_all] RUNG 3/3 — vLLM ceiling (best-effort)\n" + "=" * 70)
@@ -91,7 +101,13 @@ def run_rungs(rungs: list[str], concurrency: list[int], seed: int,
                  concurrency_grid=concurrency, profile_name=profile)
 
 
-def _run_ours_matched(concurrency: list[int], seed: int, max_tokens: int, profile: str) -> None:
+def _run_ours_matched(
+    concurrency: list[int],
+    seed: int,
+    max_tokens: int,
+    profile: str,
+    target_path: str | Path,
+) -> None:
     """
     Our engine on the IDENTICAL workload as the HF floor: exactly `c` requests
     admitted at once and decoded in one KV-cached batched loop to max_tokens
@@ -105,9 +121,10 @@ def _run_ours_matched(concurrency: list[int], seed: int, max_tokens: int, profil
 
     points = []
     env = {}
+    target = str(target_path)
     for c in concurrency:
         print(f"\n[run_all] ours (matched) concurrency={c}, total_requests={c} ...")
-        r = batched_run(model_name=ABS_TARGET, seed=seed, max_tokens=max_tokens,
+        r = batched_run(model_name=target, seed=seed, max_tokens=max_tokens,
                         concurrency_grid=[c], profile_name=profile,
                         total_requests=c, vary_lengths=False,
                         static_baseline=False, warmup_runs=1)
@@ -115,7 +132,7 @@ def _run_ours_matched(concurrency: list[int], seed: int, max_tokens: int, profil
         env = r.env
 
     merged = BenchResult(
-        engine="batched", role="phase06_scheduler_matched", model=ABS_TARGET,
+        engine="batched", role="phase06_scheduler_matched", model=target,
         profile=profile, max_tokens=max_tokens, env=env, concurrency_sweep=points,
         notes=["Matched workload vs the naive HF rung: exactly `concurrency` requests "
                "admitted at once and decoded in one batched, KV-cached loop to max_tokens "
@@ -129,25 +146,41 @@ def _run_ours_matched(concurrency: list[int], seed: int, max_tokens: int, profil
     print(f"[run_all] wrote merged matched result to {out}")
 
 
-def run_spec(seed: int, max_tokens: int, gammas: list[int]) -> None:
+def run_spec(
+    seed: int,
+    max_tokens: int,
+    gammas: list[int],
+    target_path: str | Path,
+    draft_path: str | Path,
+    draft_adapter: str | Path | None,
+) -> None:
     """Spec-decode gamma sweep: stock draft then distilled draft (alpha-lift)."""
     from bench.runners.spec import run as spec_run
+    target = str(target_path)
+    draft = str(draft_path)
     print("\n" + "=" * 70 + "\n[run_all] SPEC — stock draft\n" + "=" * 70)
-    spec_run(target_path=ABS_TARGET, draft_path=ABS_DRAFT, draft_adapter=None,
+    spec_run(target_path=target, draft_path=draft, draft_adapter=None,
              gammas=gammas, max_tokens=max_tokens, seed=seed)
     print("\n" + "=" * 70 + "\n[run_all] SPEC — distilled draft (alpha-lift)\n" + "=" * 70)
-    spec_run(target_path=ABS_TARGET, draft_path=ABS_DRAFT,
-             draft_adapter=ABS_DRAFT_ADAPTER, gammas=gammas,
+    spec_run(target_path=target, draft_path=draft,
+             draft_adapter=str(draft_adapter) if draft_adapter else None, gammas=gammas,
              max_tokens=max_tokens, seed=seed)
 
 
-def run_correctness(n: int, length: int, gamma: int, n_prompts: int) -> dict:
+def run_correctness(
+    n: int,
+    length: int,
+    gamma: int,
+    n_prompts: int,
+    target_path: str | Path,
+    draft_path: str | Path,
+) -> dict:
     """Run the phase-04 correctness gate as a subprocess; capture + persist its log."""
     PLOTS.mkdir(parents=True, exist_ok=True)
     log_path = RESULTS / "correctness.log"
     summary = {"passed": None, "n": n, "length": length, "gamma": gamma, "lines": []}
     cmd = [sys.executable, "-m", "bench.correctness",
-           "--target", ABS_TARGET, "--draft", ABS_DRAFT,
+           "--target", str(target_path), "--draft", str(draft_path),
            "--mode", "seq", "--n", str(n), "--length", str(length),
            "--gamma", str(gamma), "--n-prompts", str(n_prompts)]
     print("\n" + "=" * 70 + f"\n[run_all] CORRECTNESS — {' '.join(cmd[2:])}\n" + "=" * 70)
@@ -374,10 +407,15 @@ def make_report() -> None:
         verdict = "✅ PASS" if cs.get("passed") else "❌ FAIL"
         L.append(f"**{verdict}** — multi-token per-position TV test, "
                  f"n={cs.get('n')}, length={cs.get('length')}, gamma={cs.get('gamma')}.\n")
-        L.append("Spec-decode passed the distribution-equivalence gate: per-position "
-                 "TV distance fell within the bootstrapped direct-vs-direct null "
-                 "(99th pctile). This is statistical evidence for the accept rule "
-                 "and residual resampling implementation.\n")
+        if cs.get("passed"):
+            L.append("Spec-decode passed the distribution-equivalence gate: per-position "
+                     "TV distance fell within the bootstrapped direct-vs-direct null "
+                     "(99th pctile). This is statistical evidence for the accept rule "
+                     "and residual resampling implementation.\n")
+        else:
+            L.append("Spec-decode failed the distribution-equivalence gate. Treat the "
+                     "speculative decoding path as not release-ready until the failing "
+                     "positions are investigated and the gate is rerun successfully.\n")
         tail = [ln for ln in cs.get("lines", []) if "->" in ln][-6:]
         if tail:
             L.append("```")
@@ -399,6 +437,12 @@ def _parse(argv=None):
     p.add_argument("--seed", type=int, default=0)
     p.add_argument("--max-tokens", type=int, default=96, dest="max_tokens")
     p.add_argument("--profile", choices=["canonical", "greedy"], default="greedy")
+    p.add_argument("--target", default=str(DEFAULT_TARGET),
+                   help="target model path (default: INFERD_BENCH_TARGET or ./merged/9b)")
+    p.add_argument("--draft", default=str(DEFAULT_DRAFT),
+                   help="draft model path (default: INFERD_BENCH_DRAFT or ./weights/Qwen3.5-0.8B)")
+    p.add_argument("--draft-adapter", default=str(DEFAULT_DRAFT_ADAPTER),
+                   help="distilled draft adapter path (default: INFERD_BENCH_DRAFT_ADAPTER or ./adapters/draft-distilled)")
     p.add_argument("--spec", action="store_true", help="run the spec-decode gamma sweep")
     p.add_argument("--gamma", default="2,4,8")
     p.add_argument("--correctness", action="store_true", help="run the correctness gate")
@@ -418,12 +462,15 @@ def main(argv=None) -> int:
 
     if a.rungs:
         run_rungs([r for r in a.rungs.split(",") if r], concurrency,
-                  a.seed, a.max_tokens, a.profile)
+                  a.seed, a.max_tokens, a.profile, a.target)
     if a.spec:
-        run_spec(a.seed, max_tokens=128, gammas=gammas)
+        run_spec(a.seed, max_tokens=a.max_tokens, gammas=gammas,
+                 target_path=a.target, draft_path=a.draft, draft_adapter=a.draft_adapter)
     correctness_summary = None
     if a.correctness:
-        correctness_summary = run_correctness(a.n, a.length, a.corr_gamma, a.n_prompts)
+        correctness_summary = run_correctness(
+            a.n, a.length, a.corr_gamma, a.n_prompts, a.target, a.draft
+        )
 
     # plots + report always regenerate from whatever results now exist.
     make_plots()

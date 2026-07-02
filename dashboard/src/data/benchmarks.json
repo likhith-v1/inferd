@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-06-30T07:54:34.878Z",
-  "sourceCommit": "46752d7",
+  "generatedAt": "2026-07-02T04:36:45.501Z",
+  "sourceCommit": "3cba164",
   "benchmarkCommit": "f881a5b",
   "reportPath": "bench/report.md",
   "reportHeadline": "**19.80× over the from-scratch naive baseline**",

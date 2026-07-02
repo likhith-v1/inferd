@@ -34,6 +34,15 @@ def _strip_vision(container) -> list[str]:
     return stripped
 
 
+def _peft_inner_model(model):
+    """Return the wrapped checkpoint inside a PeftModel when the path exists."""
+    wrapper = getattr(model, "base_model", None)
+    if wrapper is None:
+        return model
+    inner = getattr(wrapper, "model", None)
+    return inner if inner is not None else model
+
+
 def _torchao_quant_config(recipe: str = "fp8"):
     """Build a load-time torchao FP8 config; keep lm_head bf16."""
     from transformers import TorchAoConfig
@@ -83,8 +92,8 @@ def load(
         )
     model.eval()
 
-    if adapter is not None and hasattr(model, "base_model"):
-        model = model.base_model.model
+    if adapter is not None:
+        model = _peft_inner_model(model)
 
     if hasattr(model, "model") and hasattr(model.model, "language_model"):
         lm = model.model.language_model
