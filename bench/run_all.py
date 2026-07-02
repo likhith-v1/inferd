@@ -57,7 +57,8 @@ def latest_hf():
 
 
 def latest_ours():
-    return _latest(lambda r: r.get("engine") == "batched")
+    return _latest(lambda r: r.get("engine") == "batched"
+                   and r.get("role") == "phase06_scheduler_matched")
 
 
 def latest_vllm():
@@ -420,13 +421,16 @@ def main(argv=None) -> int:
                   a.seed, a.max_tokens, a.profile)
     if a.spec:
         run_spec(a.seed, max_tokens=128, gammas=gammas)
+    correctness_summary = None
     if a.correctness:
-        run_correctness(a.n, a.length, a.corr_gamma, a.n_prompts)
+        correctness_summary = run_correctness(a.n, a.length, a.corr_gamma, a.n_prompts)
 
     # plots + report always regenerate from whatever results now exist.
     make_plots()
     make_report()
     print(f"\n[run_all] done in {time.time() - t0:.0f}s")
+    if correctness_summary and not correctness_summary.get("passed"):
+        return 1
     return 0
 
 

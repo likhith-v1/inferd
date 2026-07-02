@@ -142,6 +142,8 @@ class Engine:
         (it binds the channel to the running loop).
         """
         with self._inflight_lock:
+            if not self.alive or self._fatal is not None:
+                raise RuntimeError(self._fatal or "engine unavailable")
             if self._inflight >= self.max_concurrent + self.max_queue_depth:
                 return None
             self._inflight += 1
@@ -149,6 +151,9 @@ class Engine:
         channel = StreamChannel(request_id, asyncio.get_running_loop())
         self._inbox.put(_Submit(request_id, prompt_ids, max_tokens, channel))
         self._wake.set()
+        if not self.alive:
+            channel.push(Error(self._fatal or "engine unavailable"))
+            self._dec_inflight()
         return channel
 
     def cancel(self, request_id: int) -> None:
@@ -168,6 +173,7 @@ class Engine:
                 self._drain_inbox()
                 snap = self.scheduler.metrics_snapshot()
                 if snap.active_sequences == 0 and snap.waiting_sequences == 0:
+                    self._record_rate(time.perf_counter())
                     # nothing to do: sleep until woken by a submit/cancel or timeout
                     self._wake.wait(timeout=self._idle_poll_s)
                     self._wake.clear()
@@ -183,6 +189,7 @@ class Engine:
             for channel in list(self._channels.values()):
                 channel.push(Error(f"engine crashed: {self._fatal}"))
             self._channels.clear()
+            self._error_pending_submissions(f"engine crashed: {self._fatal}")
         finally:
             self._shutdown_channels()
 
@@ -201,6 +208,16 @@ class Engine:
                 self.scheduler.cancel(cmd.request_id)
                 if self._channels.pop(cmd.request_id, None) is not None:
                     self._dec_inflight()
+
+    def _error_pending_submissions(self, message: str) -> None:
+        while True:
+            try:
+                cmd = self._inbox.get_nowait()
+            except queue.Empty:
+                return
+            if isinstance(cmd, _Submit):
+                cmd.channel.push(Error(message))
+                self._dec_inflight()
 
     def _emit_updates(self) -> None:
         now = time.perf_counter()

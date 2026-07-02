@@ -284,7 +284,9 @@ class ContinuousBatchScheduler:
         else:
             for i, req in enumerate(self._waiting):
                 if req.request_id == request_id:
-                    del self._waiting[i]
+                    self._waiting.rotate(-i)
+                    self._waiting.popleft()
+                    self._waiting.rotate(i)
                     break
             else:
                 return False
