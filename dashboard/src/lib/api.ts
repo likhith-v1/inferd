@@ -140,6 +140,26 @@ export async function fetchHealth(signal?: AbortSignal): Promise<HealthResponse>
   return validateHealth(await response.json());
 }
 
+function dispatchSseChunk(chunk: string, onEvent: (event: GenerateEvent) => void) {
+  const line = chunk.split("\n").find((part) => part.startsWith("data: "));
+  if (!line) {
+    return;
+  }
+  onEvent(JSON.parse(line.slice("data: ".length)) as GenerateEvent);
+}
+
+function parseSseFrames(
+  buffer: string,
+  onEvent: (event: GenerateEvent) => void
+): string {
+  const chunks = buffer.split("\n\n");
+  const remainder = chunks.pop() ?? "";
+  for (const chunk of chunks) {
+    dispatchSseChunk(chunk, onEvent);
+  }
+  return remainder;
+}
+
 export async function generate(
   body: GenerateRequest,
   onEvent: (event: GenerateEvent) => void,
@@ -162,22 +182,17 @@ export async function generate(
   const decoder = new TextDecoder();
   let buffer = "";
 
-  let doneReading = false;
-  while (!doneReading) {
+  while (true) {
     const { done, value } = await reader.read();
-    if (done) {
-      doneReading = true;
-      continue;
+    if (value) {
+      buffer += decoder.decode(value, { stream: true });
+      buffer = parseSseFrames(buffer, onEvent);
     }
-    buffer += decoder.decode(value, { stream: true });
-    const chunks = buffer.split("\n\n");
-    buffer = chunks.pop() ?? "";
-    for (const chunk of chunks) {
-      const line = chunk.split("\n").find((part) => part.startsWith("data: "));
-      if (!line) {
-        continue;
-      }
-      onEvent(JSON.parse(line.slice("data: ".length)) as GenerateEvent);
+    if (done) {
+      buffer += decoder.decode();
+      // A terminal frame may arrive without a trailing blank line on close.
+      parseSseFrames(`${buffer}\n\n`, onEvent);
+      break;
     }
   }
 }
