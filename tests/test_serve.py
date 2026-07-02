@@ -13,7 +13,7 @@ import unittest
 
 from fastapi.testclient import TestClient
 
-from core.scheduler import SchedulerMetrics
+from core.scheduler import ContinuousBatchScheduler, RequestStatus, SchedulerConfig, SchedulerMetrics
 from serve.app import create_app
 from serve.engine import Done, Engine, Error, StreamChannel, TokenChunk
 from serve.schemas import MetricsResponse
@@ -178,6 +178,50 @@ class _RaisingScheduler:
             iterations=0, total_generated_tokens=0, used_blocks=0,
             free_blocks=0, max_blocks_used=0,
         )
+
+
+class _FakeTokenizer:
+    def __call__(self, prompt, add_special_tokens=True):
+        class Result:
+            input_ids = [ord(c) % 256 for c in prompt]
+
+        return Result()
+
+    def decode(self, token_ids, skip_special_tokens=True):
+        return "".join(chr(i) for i in token_ids)
+
+
+class EngineCancelTest(unittest.IsolatedAsyncioTestCase):
+    """Cancel must unblock the SSE handler with a terminal Done event."""
+
+    async def test_cancel_waiting_request_pushes_done(self):
+        from test_scheduler import FakeBackend
+
+        scheduler = ContinuousBatchScheduler(
+            FakeBackend(),
+            SchedulerConfig(max_blocks=32, block_size=4, max_concurrent_sequences=1),
+        )
+        eng = Engine(
+            scheduler,
+            _FakeTokenizer(),
+            model_name="m",
+            device="cpu",
+            max_concurrent=1,
+            max_queue_depth=4,
+        )
+        eng.start()
+        try:
+            first = eng.submit([1, 2], max_tokens=8)
+            second = eng.submit([3, 4], max_tokens=8)
+            self.assertIsNotNone(first)
+            self.assertIsNotNone(second)
+            eng.cancel(second.request_id)
+            item = await asyncio.wait_for(second.queue.get(), timeout=2)
+            self.assertIsInstance(item, Done)
+            self.assertEqual(item.finish_reason, RequestStatus.CANCELLED.value)
+            self.assertEqual(item.generated_tokens, 0)
+        finally:
+            eng.stop()
 
 
 class EngineCrashTest(unittest.IsolatedAsyncioTestCase):
