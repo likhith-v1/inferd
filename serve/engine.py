@@ -205,8 +205,12 @@ class Engine:
                 )
                 self._channels[cmd.request_id] = cmd.channel
             elif isinstance(cmd, _Cancel):
+                channel = self._channels.pop(cmd.request_id, None)
                 self.scheduler.cancel(cmd.request_id)
-                if self._channels.pop(cmd.request_id, None) is not None:
+                if channel is not None:
+                    req = self.scheduler.get(cmd.request_id)
+                    tokens = len(req.generated_ids) if req is not None else channel.seen_tokens
+                    channel.push(Done(RequestStatus.CANCELLED.value, tokens))
                     self._dec_inflight()
 
     def _error_pending_submissions(self, message: str) -> None:
