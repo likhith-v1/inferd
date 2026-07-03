@@ -5,6 +5,22 @@ dashboard, benchmark report, and FP8 27B capacity proof are implemented and
 measured. The items below are the remaining checks before cutting a tagged
 release.
 
+## Status — `v0.1.0` released (2026-07-03)
+
+First stable release cut off `main`, superseding pre-release `v0.1.0-rc.1`. Sign-off:
+
+- **No-GPU gate** — 33 unit tests + all module `--selfcheck`s: **PASS**.
+- **Dashboard gate** — `bun run lint` + `bun run build`: **PASS**.
+- **GPU spot-checks** — `paged_equiv --mode both` bit-exact (`max_abs=0`); `batched_equiv`
+  within tol (`max|Δlogit|=0.73 < 1.0`, `bad_flips=0`). Run against the base `Qwen3.5-9B`
+  — equivalence is weights-independent, and `merged/9b` was not on the build machine.
+- **Headline agreement** — README / `bench/report.md` / `benchmarks.json` consistent
+  (19.8×, 461.8 tok/s).
+- **Tracked artifacts** — none (clean).
+- **Under-load demo video** — intentionally waived for this cut (not a blocker).
+
+The checklist below is retained as the reusable template for future releases.
+
 ## Required Before Tagging
 
 - Capture the under-load dashboard demo and place/link it from `docs/demo.md`.

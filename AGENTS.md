@@ -8,7 +8,7 @@ A from-scratch local LLM inference stack: **QLoRA fine-tune → speculative deco
 - **Dashboard live:** `dashboard/` visualizes `/metrics` (1.5 s poll) and `/generate` (SSE) — every number traces to a real source (live / benchmark snapshot / rederived), nothing faked.
 - **Fine-tuning is real, not hypothetical:** 9B merged; the **27B QLoRA adapter exists** (`adapters/27b`) and the **fine-tuned 27B is served in FP8 as a capacity proof** (`bench/results/*_fp8_27b_hero/`).
 - **Headline numbers (all trace to `bench/results/`):** continuous batching ~**19.8× over naive HF at c=32**; spec-decode **distribution-equivalence PASS @ n=1500**; 27B FP8 fits at ≈**28.9 GiB** on the 32 GB card.
-- **Release status:** `v0.1.0-rc.1` cut as a GitHub **pre-release** (2026-07-03) off `main` at `ad9b8f3`. Not yet promoted to a final `v0.1.0` — the under-load demo capture and the `merged/9b` GPU equivalence spot-checks remain (see `docs/PRE_RELEASE.md`).
+- **Release status:** `v0.1.0` released (2026-07-03) as the first stable GitHub release off `main`, superseding pre-release `v0.1.0-rc.1`. GPU equivalence spot-checks passed (`paged_equiv` bit-exact, `batched_equiv` within tol, run against the base 9B); the under-load demo capture was intentionally waived. See `docs/PRE_RELEASE.md`.
 
 ## Before you implement — read first
 - **Read the whole codebase before writing any code.** Reuse what exists; do not re-implement helpers, types, or patterns that already live here.
