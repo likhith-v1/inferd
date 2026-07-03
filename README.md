@@ -6,6 +6,8 @@ A from-scratch local LLM inference stack: **QLoRA fine-tuning → speculative de
 
 The thesis is depth on both ends: fine-tune a showcase model *and* serve it through an engine you built yourself. Most projects stop at "I LoRA'd a model" or "I wrapped vLLM." This repo closes the loop.
 
+See [`CONTRIBUTORS.md`](CONTRIBUTORS.md) for maintainer and assistant acknowledgements.
+
 ---
 
 ## What it does
