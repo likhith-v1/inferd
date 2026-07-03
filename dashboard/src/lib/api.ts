@@ -182,17 +182,18 @@ export async function generate(
   const decoder = new TextDecoder();
   let buffer = "";
 
-  while (true) {
-    const { done, value } = await reader.read();
+  let done = false;
+  while (!done) {
+    const { done: streamDone, value } = await reader.read();
     if (value) {
       buffer += decoder.decode(value, { stream: true });
       buffer = parseSseFrames(buffer, onEvent);
     }
-    if (done) {
+    if (streamDone) {
       buffer += decoder.decode();
       // A terminal frame may arrive without a trailing blank line on close.
       parseSseFrames(`${buffer}\n\n`, onEvent);
-      break;
+      done = true;
     }
   }
 }
