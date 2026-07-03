@@ -247,5 +247,52 @@ class EngineCrashTest(unittest.IsolatedAsyncioTestCase):
             eng.stop()
 
 
+class _RaisingSubmitScheduler:
+    """Fake scheduler whose submit() raises — a bad request must not kill the loop."""
+
+    def submit(self, prompt_ids, max_tokens, request_id):
+        raise ValueError("max_tokens must be positive")
+
+    def cancel(self, request_id):
+        return False
+
+    def get(self, request_id):
+        return None
+
+    def step(self):
+        return None
+
+    def metrics_snapshot(self):
+        return SchedulerMetrics(
+            waiting_sequences=0, active_sequences=0, completed_sequences=0,
+            failed_sequences=0, admitted_sequences=0, evicted_sequences=0,
+            iterations=0, total_generated_tokens=0, used_blocks=0,
+            free_blocks=0, max_blocks_used=0,
+        )
+
+
+class EngineBadSubmitTest(unittest.IsolatedAsyncioTestCase):
+    """A per-request submit error must fail only that request, not the engine."""
+
+    async def test_bad_submit_errors_channel_and_engine_survives(self):
+        eng = Engine(
+            _RaisingSubmitScheduler(), tokenizer=None, model_name="m", device="cpu",
+            max_concurrent=4, max_queue_depth=8,
+        )
+        eng.start()
+        try:
+            channel = eng.submit([1, 2, 3], max_tokens=0)
+            self.assertIsNotNone(channel)
+            item = await asyncio.wait_for(channel.queue.get(), timeout=5)
+            self.assertIsInstance(item, Error)
+            self.assertIn("rejected", item.message)
+            await asyncio.sleep(0.05)  # let the loop settle back to idle
+            self.assertTrue(eng.alive)          # engine survived the bad request
+            self.assertIsNone(eng._fatal)
+            self.assertEqual(eng._inflight, 0)  # inflight not leaked
+        finally:
+            eng.stop()
+
+
 if __name__ == "__main__":
     unittest.main()

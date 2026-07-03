@@ -151,7 +151,9 @@ class Engine:
         channel = StreamChannel(request_id, asyncio.get_running_loop())
         self._inbox.put(_Submit(request_id, prompt_ids, max_tokens, channel))
         self._wake.set()
-        if not self.alive:
+        if not self.alive or self._fatal is not None:
+            # Engine died between the alive check and here; ensure this client is
+            # errored rather than left hanging on an inbox the loop won't drain.
             channel.push(Error(self._fatal or "engine unavailable"))
             self._dec_inflight()
         return channel
@@ -200,10 +202,15 @@ class Engine:
             except queue.Empty:
                 return
             if isinstance(cmd, _Submit):
-                self.scheduler.submit(
-                    cmd.prompt_ids, max_tokens=cmd.max_tokens, request_id=cmd.request_id
-                )
-                self._channels[cmd.request_id] = cmd.channel
+                try:
+                    self.scheduler.submit(
+                        cmd.prompt_ids, max_tokens=cmd.max_tokens, request_id=cmd.request_id
+                    )
+                except Exception as exc:  # a bad request must fail only itself, not kill the loop
+                    cmd.channel.push(Error(f"rejected: {exc}"))
+                    self._dec_inflight()
+                else:
+                    self._channels[cmd.request_id] = cmd.channel
             elif isinstance(cmd, _Cancel):
                 channel = self._channels.pop(cmd.request_id, None)
                 self.scheduler.cancel(cmd.request_id)
