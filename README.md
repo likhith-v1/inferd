@@ -23,6 +23,16 @@ See [`CONTRIBUTORS.md`](CONTRIBUTORS.md) for maintainer and assistant acknowledg
 
 ---
 
+## Highlights
+
+- **19.8× throughput over a naive Hugging Face baseline** at concurrency 32 (461.8 tok/s), from iteration-level continuous batching — see [Results](#results).
+- **Exact speculative decoding, not an approximation** — rejection sampling + residual resample, distribution-equivalence gate **PASS @ n=1500**.
+- **A fine-tuned 27B served on a 32 GB card** — QLoRA adapter + load-time FP8 fits at **28.9 GiB** (an honest capacity proof, not a latency win).
+- **Fully local and offline** — one-time weight download, then air-gapped; no cloud or API inference, ever.
+- **Nothing faked** — every number regenerates from `bench/results/` with one command, and the live React dashboard traces each metric to a real source.
+
+---
+
 ## What it does
 
 | Layer | Responsibility | Status |
