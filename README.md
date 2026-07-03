@@ -69,26 +69,62 @@ Dashboard requirements are pinned by [`dashboard/bun.lock`](dashboard/bun.lock).
 ## Architecture
 
 ```mermaid
-flowchart TB
-    dash["Dashboard<br/>React + Vite · live<br/>tokens/sec · TTFT · α · VRAM"]
-    serve["Serving<br/>FastAPI + SSE<br/>queue · scheduler · streaming"]
-    core["Inference core · live<br/>spec decode · paged KV · batching<br/>model runner (target + draft, bf16)"]
-    ft["Fine-tuning · live<br/>Unsloth QLoRA · golden eval · export · draft KD"]
+flowchart LR
+    subgraph UI["Dashboard"]
+        dash["React + Vite<br/>Overview · Streams · Memory · Benchmarks · Spec decode"]
+        snapshot["benchmark snapshot<br/>dashboard/src/data/benchmarks.json"]
+    end
 
-    dash -->|SSE / WebSocket| serve
-    serve -->|in-process| core
-    ft -->|adapters / merged weights| core
+    subgraph API["Serving layer"]
+        app["FastAPI app<br/>/generate · /metrics · /healthz"]
+        engine["Engine thread<br/>async SSE bridge · crash-safe channels"]
+    end
+
+    subgraph Core["Inference core"]
+        sched["ContinuousBatchScheduler<br/>FCFS admission · block budget · batched decode"]
+        runner["ModelRunner<br/>text-only Qwen backbone · bf16/FP8 load paths"]
+        spec["spec_decode.py<br/>exact accept/reject + residual resample"]
+        paged["paged_cache.py / paged_attn.py<br/>block allocator + reference paged attention"]
+    end
+
+    subgraph Train["Fine-tuning artifacts"]
+        qlora["QLoRA + eval + export<br/>finetune/"]
+        artifacts["local artifacts<br/>adapters/ · merged/ · weights/"]
+    end
+
+    subgraph Measure["Measurement"]
+        bench["bench/ harness<br/>HF floor · inferd engine · vLLM ceiling"]
+        results["bench/results/run-id/result.json<br/>plots + bench/report.md"]
+    end
+
+    dash -->|GET /metrics, /healthz| app
+    dash -->|POST /generate, SSE frames| app
+    snapshot --> dash
+    app -->|submit / cancel| engine
+    engine -->|step loop| sched
+    sched -->|prefill / decode_batch| runner
+    sched -->|nucleus sampling helpers| spec
+    runner -->|logits + KV handle| sched
+    engine -->|token · done · error| app
+    qlora --> artifacts
+    artifacts -->|target, draft, adapters| runner
+    bench -->|headless imports| sched
+    bench -->|headless imports| spec
+    bench -->|headless imports| paged
+    bench --> results
+    results --> snapshot
 ```
 
-| Layer | Package | Status |
-|-------|---------|--------|
-| Dashboard | `dashboard/` | Live |
-| Serving | `serve/` | Live |
-| Inference core | `core/` | Live |
-| Fine-tuning | `finetune/` | Live |
-| Benchmarks | `bench/` | Live (headless; no HTTP required) |
+| Plane | Code | Role |
+|-------|------|------|
+| UI | `dashboard/` | Polls `/metrics`, streams `/generate`, and renders committed benchmark snapshots without fake numbers. |
+| Serving | `serve/app.py`, `serve/engine.py`, `serve/schemas.py` | FastAPI contract, SSE token stream, queue admission, cancellation, crash surfacing, and live metrics. |
+| Runtime core | `core/model_runner.py`, `core/scheduler.py`, `core/batched_cache.py` | Loads the text-only Qwen backbone, owns FCFS continuous batching, stacks/splits KV caches, and runs one batched decode step per iteration. |
+| Algorithm gates | `core/spec_decode.py`, `core/paged_cache.py`, `core/paged_attn.py`, `core/qwen35_patch.py` | Exact speculative decoding, paged-cache reference paths, and the Qwen hybrid-attention patch used by correctness tests and benchmarks. |
+| Fine-tuning | `finetune/` | Prepares datasets, runs QLoRA/KD, evaluates golden prompts, and exports adapters or merged checkpoints for local serving. |
+| Measurement | `bench/`, `tests/` | Headless harness, correctness gates, equivalence tests, plots, and `bench/report.md`; measurement does not depend on the HTTP stack. |
 
-The core is importable and headless-benchmarkable — measurement never depends on the HTTP stack.
+The serving path is intentionally thin: HTTP never owns model state. The background engine thread owns the scheduler, the scheduler treats KV as an opaque `ModelRunner` handle, and benchmarks import the same core modules directly.
 
 ---
 
