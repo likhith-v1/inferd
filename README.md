@@ -68,51 +68,54 @@ Dashboard requirements are pinned by [`dashboard/bun.lock`](dashboard/bun.lock).
 
 ## Architecture
 
+The architecture is split into two diagrams so it stays readable in GitHub's Mermaid renderer.
+
+**Runtime request path**
+
 ```mermaid
-flowchart LR
-    subgraph UI["Dashboard"]
-        dash["React + Vite<br/>Overview · Streams · Memory · Benchmarks · Spec decode"]
-        snapshot["benchmark snapshot<br/>dashboard/src/data/benchmarks.json"]
-    end
-
-    subgraph API["Serving layer"]
-        app["FastAPI app<br/>/generate · /metrics · /healthz"]
-        engine["Engine thread<br/>async SSE bridge · crash-safe channels"]
-    end
-
-    subgraph Core["Inference core"]
-        sched["ContinuousBatchScheduler<br/>FCFS admission · block budget · batched decode"]
-        runner["ModelRunner<br/>text-only Qwen backbone · bf16/FP8 load paths"]
-        spec["spec_decode.py<br/>exact accept/reject + residual resample"]
-        paged["paged_cache.py / paged_attn.py<br/>block allocator + reference paged attention"]
-    end
-
-    subgraph Train["Fine-tuning artifacts"]
-        qlora["QLoRA + eval + export<br/>finetune/"]
-        artifacts["local artifacts<br/>adapters/ · merged/ · weights/"]
-    end
-
-    subgraph Measure["Measurement"]
-        bench["bench/ harness<br/>HF floor · inferd engine · vLLM ceiling"]
-        results["bench/results/run-id/result.json<br/>plots + bench/report.md"]
-    end
+%%{init: {"themeVariables": {"fontSize": "18px"}}}%%
+flowchart TB
+    dash["React dashboard<br/>dashboard/"]
+    app["FastAPI app<br/>serve/app.py<br/>/generate · /metrics · /healthz"]
+    engine["Engine thread<br/>serve/engine.py<br/>queues · SSE channels · crash surfacing"]
+    sched["ContinuousBatchScheduler<br/>core/scheduler.py<br/>FCFS admission · block budget · batched decode"]
+    runner["ModelRunner<br/>core/model_runner.py<br/>text-only Qwen · bf16/FP8 load paths"]
+    artifacts["local model artifacts<br/>weights/ · adapters/ · merged/"]
 
     dash -->|GET /metrics, /healthz| app
-    dash -->|POST /generate, SSE frames| app
-    snapshot --> dash
+    dash -->|POST /generate| app
     app -->|submit / cancel| engine
     engine -->|step loop| sched
     sched -->|prefill / decode_batch| runner
-    sched -->|nucleus sampling helpers| spec
     runner -->|logits + KV handle| sched
+    artifacts -->|target, draft, LoRA| runner
     engine -->|token · done · error| app
-    qlora --> artifacts
-    artifacts -->|target, draft, adapters| runner
-    bench -->|headless imports| sched
-    bench -->|headless imports| spec
-    bench -->|headless imports| paged
+    app -->|JSON + SSE frames| dash
+```
+
+**Artifacts and measurement**
+
+```mermaid
+%%{init: {"themeVariables": {"fontSize": "18px"}}}%%
+flowchart TB
+    data["datasets + golden prompts<br/>data/ · finetune/golden_set.jsonl"]
+    ft["QLoRA / KD / export<br/>finetune/"]
+    artifacts["local artifacts<br/>weights/ · adapters/ · merged/"]
+    core["core modules<br/>scheduler · spec decode · paged cache"]
+    bench["headless harness<br/>bench/"]
+    results["result JSON<br/>bench/results/run-id/result.json"]
+    report["plots + report<br/>bench/results/plots/ · bench/report.md"]
+    snapshot["dashboard snapshot<br/>dashboard/src/data/benchmarks.json"]
+    dashboard["dashboard benchmark views<br/>Overview · Benchmarks · Spec decode"]
+
+    data --> ft
+    ft --> artifacts
+    artifacts --> bench
+    core --> bench
     bench --> results
+    results --> report
     results --> snapshot
+    snapshot --> dashboard
 ```
 
 | Plane | Code | Role |
