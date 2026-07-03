@@ -1,5 +1,12 @@
 # inferd
 
+![Status](https://img.shields.io/badge/status-pre--release-orange)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+![Python](https://img.shields.io/badge/python-3.13-3776AB?logo=python&logoColor=white)
+![PyTorch](https://img.shields.io/badge/PyTorch-2.11%20%2B%20cu130-EE4C2C?logo=pytorch&logoColor=white)
+![GPU](https://img.shields.io/badge/GPU-RTX%205090%20%C2%B7%20sm__120-76B900?logo=nvidia&logoColor=white)
+![Inference](https://img.shields.io/badge/inference-local%20%C2%B7%20offline-success)
+
 > **Status:** pre-release candidate. The full pipeline — fine-tuning, engine, serving, benchmarks, the FP8 27B hero, and the live **React dashboard** — is built and measured. Every number below traces to a `result.json` under `bench/results/` and regenerates from one command. Remaining release work is the under-load **demo capture** (`docs/demo.md`) and the final gate in [`docs/PRE_RELEASE.md`](docs/PRE_RELEASE.md). See [Current status](#current-status).
 
 A from-scratch local LLM inference stack: **QLoRA fine-tuning → speculative decoding → paged KV-cache → continuous batching**, served via FastAPI with a React metrics dashboard. Benchmarked against a naive Hugging Face baseline and vLLM as the reference ceiling. Runs fully offline on a single RTX 5090 — no cloud APIs, no external inference dependencies.
