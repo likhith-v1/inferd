@@ -51,7 +51,7 @@ Weights, adapters, merged checkpoints, and datasets are gitignored and live unde
 
 ## Requirements
 
-Python packages are listed without version constraints in [`requirements.txt`](requirements.txt). Version requirements stay declared in [`pyproject.toml`](pyproject.toml), exact resolved versions are pinned in [`uv.lock`](uv.lock), and dashboard packages are declared in [`dashboard/package.json`](dashboard/package.json). Install through `uv sync`.
+Python packages are listed without version constraints in [`requirements.txt`](requirements.txt) to avoid any version conflicts while installing those libraries. Version requirements stay declared in [`pyproject.toml`](pyproject.toml), exact resolved versions are pinned in [`uv.lock`](uv.lock), and dashboard packages are declared in [`dashboard/package.json`](dashboard/package.json). Install through `uv sync`. Use latest LTS versions for best experience.
 
 | Area | Requirements |
 |------|--------------|
