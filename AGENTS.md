@@ -2,13 +2,13 @@
 
 A from-scratch local LLM inference stack: **QLoRA fine-tune → speculative decoding → paged KV-cache → continuous batching**, served via FastAPI + a React dashboard, benchmarked against naive HF and vLLM. Runs fully local on a single RTX 5090. See `plan.md` for the vision and `plans/` for the execution pack (one file per phase, `00`–`11`).
 
-## Current state (2026-06-30)
-**All phases 01–11 are code-complete on `dev`.** The React dashboard (08) is built (`dashboard/`, Vite + React + TS, five pages) and passes `bun run build` (tsc + Vite) and `bun run lint` clean. Remaining work is finishing, not features: capture the under-load demo video (`docs/assets/demo.mp4`) and the maintainer's `dev → main` release gate.
+## Current state (2026-07-03)
+**All phases 01–11 are code-complete and merged to `main`.** The React dashboard (08) is built (`dashboard/`, Vite + React + TS, five pages) and has passed `bun run build` (tsc + Vite) and `bun run lint` in the phase gate. Remaining work is finishing, not features: capture the under-load demo video (`docs/assets/demo.mp4`) and run the pre-release gate in `docs/PRE_RELEASE.md`.
 - **Engine + serving live:** spec-decode, paged cache, continuous batching, FastAPI/SSE serving (`serve/`), the headless harness, plots, and `bench/report.md`.
 - **Dashboard live:** `dashboard/` visualizes `/metrics` (1.5 s poll) and `/generate` (SSE) — every number traces to a real source (live / benchmark snapshot / rederived), nothing faked.
 - **Fine-tuning is real, not hypothetical:** 9B merged; the **27B QLoRA adapter exists** (`adapters/27b`) and the **fine-tuned 27B is served in FP8 as a capacity proof** (`bench/results/*_fp8_27b_hero/`).
 - **Headline numbers (all trace to `bench/results/`):** continuous batching ~**19.8× over naive HF at c=32**; spec-decode **distribution-equivalence PASS @ n=1500**; 27B FP8 fits at ≈**28.9 GiB** on the 32 GB card.
-- **Release status:** held on `dev` — not merged to `main`, no tags, nothing pushed beyond `origin/dev`.
+- **Release status:** pre-release candidate on `main`; no tags or GitHub releases yet.
 
 ## Before you implement — read first
 - **Read the whole codebase before writing any code.** Reuse what exists; do not re-implement helpers, types, or patterns that already live here.
@@ -36,5 +36,5 @@ A from-scratch local LLM inference stack: **QLoRA fine-tune → speculative deco
 
 ## Repo layout (✅ = present, ⏳ = pending)
 - ✅ `finetune/` (QLoRA + eval + export) · `core/` (spec_decode, paged_cache, paged_attn, scheduler, model_runner, qwen35_patch) · `serve/` (FastAPI + SSE: app, engine, schemas) · `bench/` (harness, correctness, runners, results, `run_all.py`, `report.md`) · `scripts/` (`hero_fp8.py`, `smoke_load.py`) · `tests/` · `plans/` · `docs/` (`ENVIRONMENT.md`, `demo.md`) · `DECISIONS.md` · `README.md`
-- ✅ `dashboard/` (React + Vite + TS) — phase 08, built and passing build + lint; the under-load demo capture (`docs/demo.md`) is the only thing still ahead of it.
+- ✅ `dashboard/` (React + Vite + TS) — phase 08, built and passing build + lint in the phase gate; the under-load demo capture (`docs/demo.md`) is the only release artifact still ahead of it.
 - Gitignored, local-only: `weights/`, `adapters/`, `merged/`, `data/`, `runs/` (never commit these or `__pycache__`).

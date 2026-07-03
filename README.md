@@ -1,6 +1,6 @@
 # inferd
 
-> **Status:** the full pipeline — fine-tuning, engine, serving, benchmarks, the FP8 27B hero, and the live **React dashboard** — is built and measured. Every number below traces to a `result.json` under `bench/results/` and regenerates from one command. The only piece still ahead is the under-load **demo capture** (`docs/demo.md`). See [Current status](#current-status).
+> **Status:** pre-release candidate. The full pipeline — fine-tuning, engine, serving, benchmarks, the FP8 27B hero, and the live **React dashboard** — is built and measured. Every number below traces to a `result.json` under `bench/results/` and regenerates from one command. Remaining release work is the under-load **demo capture** (`docs/demo.md`) and the final gate in [`docs/PRE_RELEASE.md`](docs/PRE_RELEASE.md). See [Current status](#current-status).
 
 A from-scratch local LLM inference stack: **QLoRA fine-tuning → speculative decoding → paged KV-cache → continuous batching**, served via FastAPI with a React metrics dashboard. Benchmarked against a naive Hugging Face baseline and vLLM as the reference ceiling. Runs fully offline on a single RTX 5090 — no cloud APIs, no external inference dependencies.
 
@@ -24,7 +24,7 @@ See [`CONTRIBUTORS.md`](CONTRIBUTORS.md) for maintainer and assistant acknowledg
 
 ## Quick start
 
-**Requirements:** WSL2 Ubuntu, RTX 5090 (Blackwell sm_120), CUDA 12.8+, [uv](https://docs.astral.sh/uv/), `gcc`/`g++` for Triton JIT. Full stack details in [`docs/ENVIRONMENT.md`](docs/ENVIRONMENT.md).
+**Requirements:** WSL2 Ubuntu, RTX 5090 (Blackwell sm_120), CUDA 12.8+, [uv](https://docs.astral.sh/uv/), `gcc`/`g++` for Triton JIT, and [Bun](https://bun.sh/) for the dashboard. Full stack details in [`docs/ENVIRONMENT.md`](docs/ENVIRONMENT.md).
 
 ```bash
 # 1. Install dependencies (pinned in uv.lock)
@@ -53,7 +53,7 @@ Weights, adapters, merged checkpoints, and datasets are gitignored and live unde
 
 ```mermaid
 flowchart TB
-    dash["Dashboard<br/>React + Vite · planned<br/>tokens/sec · TTFT · α · VRAM"]
+    dash["Dashboard<br/>React + Vite · live<br/>tokens/sec · TTFT · α · VRAM"]
     serve["Serving<br/>FastAPI + SSE<br/>queue · scheduler · streaming"]
     core["Inference core · live<br/>spec decode · paged KV · batching<br/>model runner (target + draft, bf16)"]
     ft["Fine-tuning · live<br/>Unsloth QLoRA · golden eval · export · draft KD"]
@@ -65,7 +65,7 @@ flowchart TB
 
 | Layer | Package | Status |
 |-------|---------|--------|
-| Dashboard | `dashboard/` | Planned |
+| Dashboard | `dashboard/` | Live |
 | Serving | `serve/` | Live |
 | Inference core | `core/` | Live |
 | Fine-tuning | `finetune/` | Live |
@@ -84,7 +84,7 @@ inferd/
 │   ├── model_runner.py     # Shared hot file: load + forward(tokens, kv)
 │   ├── spec_decode.py      # Exact rejection sampling + resample
 │   ├── paged_cache.py      # Block allocator + page table
-│   ├── paged_attn.py       # Paged-attention reference (Triton kernel TBD)
+│   ├── paged_attn.py       # Paged-attention reference (Triton kernel follow-up)
 │   ├── batched_cache.py    # Stack/split hybrid caches for batched decode
 │   └── scheduler.py        # FCFS continuous batching
 ├── finetune/               # QLoRA training pipeline
@@ -154,7 +154,7 @@ if all γ accepted:
 | Fine-tuning | Unsloth first; Axolotl / Llama-Factory / ms-swift / TRL+PEFT as fallbacks. bitsandbytes 4-bit NF4. **No GemForge.** |
 | Core | Python, PyTorch (Blackwell CUDA 12.8+), Triton (paged attention), Hugging Face Transformers |
 | Serving | FastAPI + uvicorn, async queue, SSE streaming |
-| Dashboard | React + Vite, Recharts/uPlot *(planned)* |
+| Dashboard | React + Vite, Recharts |
 | Environment | WSL2 Ubuntu, `uv` lockfile, everything pinned |
 | Reference | vLLM (ceiling only) |
 
@@ -164,8 +164,9 @@ FP8 is the **one quantization exception**, scoped to the fine-tuned 27B hero dem
 
 ## Current status
 
-**All phases 01–11 are code-complete**, including the live dashboard (08), which passes
-build + lint. The only piece still ahead is the under-load **demo capture** (`docs/demo.md`).
+**All phases 01–11 are code-complete and merged to `main`**, including the live dashboard (08).
+This is a pre-release candidate, not a tagged release: the remaining work is the under-load
+**demo capture** (`docs/demo.md`) plus the final gate in [`docs/PRE_RELEASE.md`](docs/PRE_RELEASE.md).
 
 | Phase | Deliverable | Status |
 |-------|-------------|--------|
@@ -176,10 +177,10 @@ build + lint. The only piece still ahead is the under-load **demo capture** (`do
 | 05 — Paged KV | Block allocator + reference paged attention | Done (runtime persistent cache TBD) |
 | 06 — Batching | Iteration-level scheduler + batched decode | Done |
 | 07 — Serving | FastAPI + SSE | Done |
-| 08 — Dashboard | Live metrics UI | Done (builds + lints; demo capture pending) |
+| 08 — Dashboard | Live metrics UI | Done |
 | 09 — Bench/report | Aggregated plots; one-command reproduce | Done |
 | 10 — FP8 hero | Fine-tuned 27B via FP8 | Done as capacity proof; latency impractical |
-| 11 — Docs | Portfolio-ready README with final numbers | Done (demo capture still pending) |
+| 11 — Docs | Portfolio-ready README with final numbers | Done |
 
 ### Results
 
@@ -211,6 +212,9 @@ Every figure below regenerates with `uv run python bench/run_all.py --plots`; pl
 All engines share the frozen workload in `bench/workload.py` (prompts, seeds, sampling profiles).
 
 ```bash
+# Regenerate plots/report from committed benchmark results (no model load)
+uv run python bench/run_all.py --plots
+
 # HF naive floor
 uv run python -m bench.harness --engine hf --model Qwen3.5-9B \
     --seed 0 --max-tokens 256 --concurrency 1,2,4,8
@@ -234,6 +238,24 @@ Results are written to `bench/results/<timestamp>_<engine>_<model>/result.json` 
 
 ---
 
+## Running the service and dashboard
+
+```bash
+# API + engine
+INFERD_MODEL=merged/9b uv run uvicorn serve.app:app --host 0.0.0.0 --port 8000
+
+# Dashboard
+cd dashboard
+bun install
+bun run dev
+```
+
+The Vite dev server proxies `/metrics`, `/healthz`, and `/generate` to
+`localhost:8000`. For preview/static serving from another origin, set
+`VITE_INFERD_API` as shown in `dashboard/.env.example`.
+
+---
+
 ## Phased roadmap
 
 Build order: **harness → QLoRA → spec-decode (+ α-lift) → paged cache → continuous batching → serving → dashboard → FP8 hero**. Each phase is a defensible stopping point.
@@ -246,7 +268,7 @@ Development uses one git worktree per phase (`phase-NN-slug` → merge into `dev
 
 Not committed — early ideation and follow-ups beyond the v1 CUDA stack:
 
-- **Apple Silicon (MLX)** — ideation stage; exploring a Metal/MLX port so the same pipeline can run on Mac hardware without the WSL2 + CUDA dependency.
+- **Apple Silicon port** — out of scope for this CUDA v1; a separate Metal/MLX exploration may happen later.
 - **Persistent paged runtime KV cache** — wire the phase-05 block allocator into live decode instead of stacking HF caches.
 - **Batched speculative decoding** — extend accept/replay through the continuous batching scheduler.
 - **vLLM ceiling on Blackwell** — re-run when sm_120 wheels are available.

@@ -9,6 +9,8 @@ bench/.venv-vllm/
 unsloth_compiled_cache/
 dashboard/node_modules/
 dashboard/dist/
+# Dashboard uses Bun as the canonical package manager.
+dashboard/package-lock.json
 .DS_Store
 **/.DS_Store/
 **/__pycache__/

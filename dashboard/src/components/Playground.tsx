@@ -46,7 +46,7 @@ export default function Playground({ compact = false }: { compact?: boolean }) {
         </div>
       </form>
       <div className="burst-row" aria-label="Demo load controls">
-        {[1, 4, 8].map((count) => (
+        {[1, 4, 8, 16, 32].map((count) => (
           <button key={count} type="button" onClick={() => generation.startDemoLoad(count, maxTokens)}>
             {count === 1 ? <Play size={15} aria-hidden="true" /> : <Zap size={15} aria-hidden="true" />}
             {count} stream{count > 1 ? "s" : ""}
@@ -56,4 +56,3 @@ export default function Playground({ compact = false }: { compact?: boolean }) {
     </section>
   );
 }
-
