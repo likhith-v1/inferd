@@ -49,6 +49,20 @@ Weights, adapters, merged checkpoints, and datasets are gitignored and live unde
 
 ---
 
+## Dependencies
+
+Python dependencies are declared in [`pyproject.toml`](pyproject.toml) and pinned in [`uv.lock`](uv.lock). The project targets Python `>=3.13.14,<3.14` and installs through `uv sync`.
+
+| Area | Dependencies |
+|------|--------------|
+| Core ML/runtime | `torch>=2.11.0`, `transformers>=5.3.0`, `accelerate>=1.14.0`, `triton>=3.6.0`, `causal-conv1d>=1.6.1`, `flash-linear-attention>=0.5.1` |
+| Fine-tuning | `unsloth>=2026.3.11`, `bitsandbytes>=0.49.2`, `peft>=0.19.1`, `trl>=0.24.0`, `datasets>=4.3.0`, `huggingface-hub>=1.21.0` |
+| Serving and benchmarks | `fastapi>=0.115.0`, `uvicorn[standard]>=0.30.0`, `httpx>=0.27.0`, `matplotlib>=3.11.0` |
+
+Dashboard dependencies live in [`dashboard/package.json`](dashboard/package.json) and are pinned by [`dashboard/bun.lock`](dashboard/bun.lock). Runtime packages are React 18, React Router, Recharts, Lucide React, and JetBrains Mono fonts; development uses Vite, TypeScript, ESLint, and React type packages.
+
+---
+
 ## Architecture
 
 ```mermaid
