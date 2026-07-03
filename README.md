@@ -24,10 +24,10 @@ See [`CONTRIBUTORS.md`](CONTRIBUTORS.md) for maintainer and assistant acknowledg
 
 ## Quick start
 
-**Requirements:** WSL2 Ubuntu, RTX 5090 (Blackwell sm_120), CUDA 12.8+, [uv](https://docs.astral.sh/uv/), `gcc`/`g++` for Triton JIT, and [Bun](https://bun.sh/) for the dashboard. Full stack details in [`docs/ENVIRONMENT.md`](docs/ENVIRONMENT.md).
+**Requirements:** WSL2 Ubuntu, Python `>=3.13.14,<3.14`, RTX 5090 (Blackwell sm_120), CUDA 12.8+, [uv](https://docs.astral.sh/uv/), `gcc`/`g++` for Triton JIT, and [Bun](https://bun.sh/) for the dashboard. Full stack details in [`docs/ENVIRONMENT.md`](docs/ENVIRONMENT.md).
 
 ```bash
-# 1. Install dependencies (pinned in uv.lock)
+# 1. Install requirements (pinned in uv.lock)
 uv sync
 sudo apt-get install -y gcc g++   # Triton kernel JIT
 
@@ -49,17 +49,20 @@ Weights, adapters, merged checkpoints, and datasets are gitignored and live unde
 
 ---
 
-## Dependencies
+## Requirements
 
-Python dependencies are declared in [`pyproject.toml`](pyproject.toml) and pinned in [`uv.lock`](uv.lock). The project targets Python `>=3.13.14,<3.14` and installs through `uv sync`.
+Python packages are listed without version constraints in [`requirements.txt`](requirements.txt). Version requirements stay declared in [`pyproject.toml`](pyproject.toml), exact resolved versions are pinned in [`uv.lock`](uv.lock), and dashboard packages are declared in [`dashboard/package.json`](dashboard/package.json). Install through `uv sync`.
 
-| Area | Dependencies |
+| Area | Requirements |
 |------|--------------|
+| Python | `>=3.13.14,<3.14` |
 | Core ML/runtime | `torch>=2.11.0`, `transformers>=5.3.0`, `accelerate>=1.14.0`, `triton>=3.6.0`, `causal-conv1d>=1.6.1`, `flash-linear-attention>=0.5.1` |
 | Fine-tuning | `unsloth>=2026.3.11`, `bitsandbytes>=0.49.2`, `peft>=0.19.1`, `trl>=0.24.0`, `datasets>=4.3.0`, `huggingface-hub>=1.21.0` |
 | Serving and benchmarks | `fastapi>=0.115.0`, `uvicorn[standard]>=0.30.0`, `httpx>=0.27.0`, `matplotlib>=3.11.0` |
+| Dashboard runtime | `@fontsource/jetbrains-mono^5.2.8`, `lucide-react^0.468.0`, `react^18.3.1`, `react-dom^18.3.1`, `react-router-dom^6.28.0`, `recharts^2.13.3` |
+| Dashboard tooling | `@types/node^22.10.2`, `@types/react^18.3.12`, `@types/react-dom^18.3.1`, `@vitejs/plugin-react^5.0.0`, `@typescript-eslint/eslint-plugin^8.18.0`, `@typescript-eslint/parser^8.18.0`, `eslint^8.57.1`, `eslint-plugin-react-hooks^5.1.0`, `eslint-plugin-react-refresh^0.4.16`, `typescript~5.7.2`, `vite^6.0.3` |
 
-Dashboard dependencies live in [`dashboard/package.json`](dashboard/package.json) and are pinned by [`dashboard/bun.lock`](dashboard/bun.lock). Runtime packages are React 18, React Router, Recharts, Lucide React, and JetBrains Mono fonts; development uses Vite, TypeScript, ESLint, and React type packages.
+Dashboard requirements are pinned by [`dashboard/bun.lock`](dashboard/bun.lock).
 
 ---
 
@@ -118,6 +121,7 @@ inferd/
 ├── plans/                  # Phased execution pack (00–11)
 ├── plan.md                 # Design vision
 ├── DECISIONS.md            # Load-bearing decisions with dates
+├── requirements.txt        # Python requirements list
 └── uv.lock                 # Pinned dependency lockfile
 ```
 
