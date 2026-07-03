@@ -13,6 +13,12 @@ A from-scratch local LLM inference stack: **QLoRA fine-tuning → speculative de
 
 The thesis is depth on both ends: fine-tune a showcase model *and* serve it through an engine you built yourself. Most projects stop at "I LoRA'd a model" or "I wrapped vLLM." This repo closes the loop.
 
+<p align="center">
+  <img src="docs/assets/dashboard.png" alt="inferd dashboard — live inference metrics: tokens/sec, draft-acceptance α, VRAM headroom, and the 19.8× throughput-vs-concurrency chart" width="900">
+  <br>
+  <em>The live React dashboard — streaming metrics, draft-acceptance α, VRAM headroom, and the 19.8× throughput-vs-concurrency chart. Every number traces to a real source.</em>
+</p>
+
 See [`CONTRIBUTORS.md`](CONTRIBUTORS.md) for maintainer and assistant acknowledgements.
 
 ---
