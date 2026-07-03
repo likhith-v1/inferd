@@ -29,7 +29,7 @@ capture script so the recording is reproducible and the numbers on screen match
 
 ```bash
 # 1. Serve the 9B target through the engine
-INFERD_MODEL=/home/likhi/inferd/merged/9b \
+INFERD_MODEL=merged/9b \
   uv run uvicorn serve.app:app --port 8000
 
 # 2. (separate shell) start the dashboard dev server

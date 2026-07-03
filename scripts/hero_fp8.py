@@ -5,8 +5,8 @@ time, TTFT, decode speed, VRAM, and a short output sample. The 27B path uses
 load-time FP8 plus the LoRA adapter because a merged bf16 27B does not fit here:
 
     uv run python scripts/hero_fp8.py \
-      --model /home/likhi/inferd/weights/Qwen3.6-27B \
-      --adapter /home/likhi/inferd/adapters/27b \
+      --model weights/Qwen3.6-27B \
+      --adapter adapters/27b \
       --variants fp8 --max-tokens 64
 """
 
@@ -103,7 +103,7 @@ def _measure(model: str, adapter: str | None, quantize: str | None, prompts: lis
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--model", default="/home/likhi/inferd/merged/9b")
+    ap.add_argument("--model", default="merged/9b")
     ap.add_argument("--adapter", default=None, help="Optional LoRA adapter dir.")
     ap.add_argument("--max-tokens", type=int, default=128, dest="max_tokens")
     ap.add_argument("--n-prompts", type=int, default=4, dest="n_prompts")
