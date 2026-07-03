@@ -51,7 +51,7 @@ Weights, adapters, merged checkpoints, and datasets are gitignored and live unde
 
 ## Requirements
 
-Python packages are listed without version constraints in [`requirements.txt`](requirements.txt) to avoid any version conflicts while installing those libraries. Version requirements stay declared in [`pyproject.toml`](pyproject.toml), exact resolved versions are pinned in [`uv.lock`](uv.lock), and dashboard packages are declared in [`dashboard/package.json`](dashboard/package.json). Install through `uv sync`. Use latest LTS versions for best experience.
+Version constraints are declared in [`pyproject.toml`](pyproject.toml), exact resolved versions are pinned in [`uv.lock`](uv.lock), and dashboard packages are declared in [`dashboard/package.json`](dashboard/package.json) / [`dashboard/bun.lock`](dashboard/bun.lock). The only supported install is `uv sync` (plus `bun install` for the dashboard). Do **not** try to reproduce the environment from PyPI defaults — the pinned cu130 / sm_120 stack (e.g. `torch+cu130`, the prebuilt `causal-conv1d` wheel) is not resolvable by a plain `pip install`. The table below is a human-readable summary; `uv.lock` is the source of truth.
 
 | Area | Requirements |
 |------|--------------|
@@ -160,7 +160,6 @@ inferd/
 ├── plans/                  # Phased execution pack (00–11)
 ├── plan.md                 # Design vision
 ├── DECISIONS.md            # Load-bearing decisions with dates
-├── requirements.txt        # Python requirements list
 └── uv.lock                 # Pinned dependency lockfile
 ```
 
