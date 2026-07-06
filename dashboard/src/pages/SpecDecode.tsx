@@ -7,9 +7,22 @@ import { fixed, rate } from "../lib/format";
 
 type SpecKey = "stockAlpha" | "stockSpeedup" | "distilledAlpha" | "distilledSpeedup";
 
-function specPath(rows: { [K in SpecKey]?: number }[], key: SpecKey, width: number, height: number) {
-  const values = rows.map((row) => row[key]).filter((value): value is number => value !== undefined);
-  const max = Math.max(...values, 1);
+function specMax(rows: { [K in SpecKey]?: number }[], keys: SpecKey[]) {
+  return Math.max(
+    ...rows.flatMap((row) =>
+      keys.map((key) => row[key]).filter((value): value is number => value !== undefined)
+    ),
+    1
+  );
+}
+
+function specPath(
+  rows: { [K in SpecKey]?: number }[],
+  key: SpecKey,
+  width: number,
+  height: number,
+  max: number
+) {
   return rows
     .map((row, index) => {
       const x = rows.length <= 1 ? width / 2 : (index / (rows.length - 1)) * width;
@@ -26,6 +39,7 @@ function SpecChart({ mode }: { mode: "alpha" | "speedup" }) {
   const distilledKey: SpecKey = mode === "alpha" ? "distilledAlpha" : "distilledSpeedup";
   const width = 640;
   const height = 220;
+  const max = specMax(rows, [stockKey, distilledKey]);
 
   return (
     <section className="panel chart-panel">
@@ -41,8 +55,8 @@ function SpecChart({ mode }: { mode: "alpha" | "speedup" }) {
           {[0.25, 0.5, 0.75].map((y) => (
             <line key={y} x1="0" x2={width} y1={height * y} y2={height * y} className="chart-grid" />
           ))}
-          <polyline points={specPath(rows, stockKey, width, height)} className="chart-line vllm-line" />
-          <polyline points={specPath(rows, distilledKey, width, height)} className="chart-line ours-line" />
+          <polyline points={specPath(rows, stockKey, width, height, max)} className="chart-line vllm-line" />
+          <polyline points={specPath(rows, distilledKey, width, height, max)} className="chart-line ours-line" />
           {rows.map((row, index) => {
             const x = rows.length <= 1 ? width / 2 : (index / (rows.length - 1)) * width;
             return (

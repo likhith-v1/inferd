@@ -9,11 +9,22 @@ interface Props {
   ariaLabel: string;
 }
 
-function linePath(rows: BenchmarkRow[], key: keyof BenchmarkRow, width: number, height: number) {
-  const values = rows
-    .map((row) => (typeof row[key] === "number" ? Number(row[key]) : null))
-    .filter((value): value is number => value !== null);
-  const max = Math.max(...values, 1);
+function sharedMax(rows: BenchmarkRow[]) {
+  return Math.max(
+    ...rows.flatMap((row) =>
+      [row.naiveHf, row.ours, row.vllm].filter((value): value is number => typeof value === "number")
+    ),
+    1
+  );
+}
+
+function linePath(
+  rows: BenchmarkRow[],
+  key: keyof BenchmarkRow,
+  width: number,
+  height: number,
+  max: number
+) {
   return rows
     .map((row, index) => {
       const value = typeof row[key] === "number" ? Number(row[key]) : null;
@@ -40,6 +51,7 @@ export default function ThroughputChart({
     const x = rows.length <= 1 ? width / 2 : (index / (rows.length - 1)) * width;
     return { x, label: row.concurrency };
   });
+  const max = sharedMax(rows);
 
   return (
     <section className="panel chart-panel">
@@ -55,9 +67,9 @@ export default function ThroughputChart({
           {[0.25, 0.5, 0.75].map((y) => (
             <line key={y} x1="0" x2={width} y1={height * y} y2={height * y} className="chart-grid" />
           ))}
-          <polyline points={linePath(rows, "naiveHf", width, height)} className="chart-line hf-line" />
-          <polyline points={linePath(rows, "ours", width, height)} className="chart-line ours-line" />
-          <polyline points={linePath(rows, "vllm", width, height)} className="chart-line vllm-line" />
+          <polyline points={linePath(rows, "naiveHf", width, height, max)} className="chart-line hf-line" />
+          <polyline points={linePath(rows, "ours", width, height, max)} className="chart-line ours-line" />
+          <polyline points={linePath(rows, "vllm", width, height, max)} className="chart-line vllm-line" />
           {xTicks.map((tick) => (
             <text key={tick.label} x={tick.x} y={height - 2} className="chart-tick">
               {tick.label}
