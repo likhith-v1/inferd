@@ -70,11 +70,6 @@ def preload_cuda_libs() -> list[str]:
     return loaded
 
 
-def preload_nvjitlink() -> bool:
-    """Deprecated alias for preload_cuda_libs(). Use preload_cuda_libs() instead."""
-    return bool(preload_cuda_libs())
-
-
 def bootstrap() -> None:
     """Call at inferd entry points before GPU/CUDA library imports."""
     preload_cuda_libs()

@@ -9,7 +9,7 @@ import inferd.env  # noqa: F401
 
 import torch  # noqa: E402
 
-from bench.model_loader import _strip_vision, load  # noqa: E402
+from bench.model_loader import load  # noqa: E402
 from core.qwen35_patch import install_parallel_verify_patch  # noqa: E402
 
 install_parallel_verify_patch()
@@ -54,33 +54,7 @@ class ModelRunner:
         dtype: torch.dtype = torch.bfloat16,
     ) -> "ModelRunner":
         """Load draft backbone; optional LoRA adapter is merged before extraction."""
-        if adapter is None:
-            return cls.load_target(path, device=device, dtype=dtype)
-
-        from peft import PeftModel
-        from transformers import AutoModelForMultimodalLM, AutoTokenizer
-
-        base = AutoModelForMultimodalLM.from_pretrained(
-            str(path), dtype=dtype, device_map=device
-        )
-        tokenizer = AutoTokenizer.from_pretrained(str(path))
-        model = PeftModel.from_pretrained(base, str(adapter))
-        model = model.merge_and_unload()
-        model.eval()
-
-        if hasattr(model, "model") and hasattr(model.model, "language_model"):
-            lm = model.model.language_model
-            lm_head = model.lm_head if hasattr(model, "lm_head") else None
-            _strip_vision(model.model)
-            _strip_vision(model)
-        elif hasattr(model, "language_model"):
-            lm = model.language_model
-            lm_head = model.lm_head if hasattr(model, "lm_head") else None
-            _strip_vision(model)
-        else:
-            lm, lm_head = model, None
-
-        return cls(lm, lm_head, tokenizer, device=device)
+        return cls.load_target(path, adapter=adapter, device=device, dtype=dtype)
 
     def forward(self, tokens: torch.Tensor, kv=None, attention_mask=None,
                 position_ids=None, cache_position=None):

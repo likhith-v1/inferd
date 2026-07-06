@@ -10,7 +10,6 @@ Results are written to bench/results/<timestamp>_hf_<model>/result.json.
 
 from __future__ import annotations
 
-import json
 import time
 from pathlib import Path
 from threading import Thread
@@ -27,6 +26,7 @@ from bench.metrics import (
     itl,
     throughput,
     ttft,
+    write_result_json,
 )
 from bench.model_loader import load
 from bench.workload import (
@@ -308,24 +308,8 @@ def run(
             f"peak_vram={sp.peak_vram_mb:.0f}MiB"
         )
 
-    # 3. Write result.
-    _write_result(result, results_dir)
-    return result
-
-
-def _write_result(result: BenchResult, results_dir: Path | None) -> Path:
-    import dataclasses
-
-    if results_dir is None:
-        results_dir = Path(__file__).parent.parent / "results"
-
-    ts = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
-    out_dir = results_dir / f"{ts}_{result.engine}_{result.model.replace('/', '_')}"
-    out_dir.mkdir(parents=True, exist_ok=True)
-    out_path = out_dir / "result.json"
-
-    with open(out_path, "w") as fh:
-        json.dump(dataclasses.asdict(result), fh, indent=2)
-
+    out_path = write_result_json(
+        result, f"{result.engine}_{result.model.replace('/', '_')}", results_dir
+    )
     print(f"\n[hf] Result written to {out_path}")
-    return out_path
+    return result

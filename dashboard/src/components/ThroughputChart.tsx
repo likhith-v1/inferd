@@ -1,13 +1,3 @@
-import {
-  Area,
-  CartesianGrid,
-  Line,
-  LineChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis
-} from "recharts";
 import { BenchmarkRow } from "../lib/benchmarks";
 import SourceBadge from "./SourceBadge";
 
@@ -19,13 +9,38 @@ interface Props {
   ariaLabel: string;
 }
 
+function linePath(rows: BenchmarkRow[], key: keyof BenchmarkRow, width: number, height: number) {
+  const values = rows
+    .map((row) => (typeof row[key] === "number" ? Number(row[key]) : null))
+    .filter((value): value is number => value !== null);
+  const max = Math.max(...values, 1);
+  return rows
+    .map((row, index) => {
+      const value = typeof row[key] === "number" ? Number(row[key]) : null;
+      if (value === null) {
+        return "";
+      }
+      const x = rows.length <= 1 ? width / 2 : (index / (rows.length - 1)) * width;
+      const y = height - (value / max) * (height - 16) - 8;
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    })
+    .filter(Boolean)
+    .join(" ");
+}
+
 export default function ThroughputChart({
   rows,
   title = "Throughput vs concurrency",
   subtitle,
-  metric = "tok/s",
   ariaLabel
 }: Props) {
+  const width = 640;
+  const height = 220;
+  const xTicks = rows.map((row, index) => {
+    const x = rows.length <= 1 ? width / 2 : (index / (rows.length - 1)) * width;
+    return { x, label: row.concurrency };
+  });
+
   return (
     <section className="panel chart-panel">
       <div className="panel-heading">
@@ -36,80 +51,19 @@ export default function ThroughputChart({
         <SourceBadge kind="benchmark" />
       </div>
       <div className="chart-frame" role="img" aria-label={ariaLabel}>
-        <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={rows} margin={{ top: 8, right: 10, bottom: 0, left: 0 }}>
-            <defs>
-              <linearGradient id="ours-area" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#d7d8db" stopOpacity={0.22} />
-                <stop offset="100%" stopColor="#d7d8db" stopOpacity={0} />
-              </linearGradient>
-            </defs>
-            <CartesianGrid stroke="rgba(255,255,255,.07)" vertical={false} />
-            <XAxis
-              dataKey="concurrency"
-              tick={{ fill: "#85868b", fontSize: 11 }}
-              axisLine={false}
-              tickLine={false}
-            />
-            <YAxis
-              tick={{ fill: "#85868b", fontSize: 11 }}
-              axisLine={false}
-              tickLine={false}
-              width={42}
-            />
-            <Tooltip
-              cursor={{ stroke: "rgba(255,255,255,.14)" }}
-              contentStyle={{
-                background: "#1c1c20",
-                border: "1px solid rgba(255,255,255,.12)",
-                borderRadius: 14,
-                color: "#f2f3f4"
-              }}
-              formatter={(value: number | string, name: string) => [
-                value === null ? "pending" : `${Number(value).toFixed(1)} ${metric}`,
-                name === "naiveHf" ? "naive HF" : name
-              ]}
-              labelFormatter={(value) => `concurrency ${value}`}
-            />
-            <Area
-              type="monotone"
-              dataKey="ours"
-              stroke="none"
-              fill="url(#ours-area)"
-              isAnimationActive={false}
-              connectNulls
-            />
-            <Line
-              type="monotone"
-              dataKey="naiveHf"
-              stroke="rgba(255,255,255,.48)"
-              strokeDasharray="6 5"
-              strokeWidth={2}
-              dot={{ r: 3 }}
-              isAnimationActive={false}
-              connectNulls
-            />
-            <Line
-              type="monotone"
-              dataKey="ours"
-              stroke="#f2f3f5"
-              strokeWidth={3}
-              dot={{ r: 4, strokeWidth: 2, fill: "#0a0a0b" }}
-              isAnimationActive={false}
-              connectNulls
-            />
-            <Line
-              type="monotone"
-              dataKey="vllm"
-              stroke="#8a8b90"
-              strokeDasharray="3 5"
-              strokeWidth={2}
-              dot={{ r: 3 }}
-              isAnimationActive={false}
-              connectNulls
-            />
-          </LineChart>
-        </ResponsiveContainer>
+        <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" aria-hidden="true">
+          {[0.25, 0.5, 0.75].map((y) => (
+            <line key={y} x1="0" x2={width} y1={height * y} y2={height * y} className="chart-grid" />
+          ))}
+          <polyline points={linePath(rows, "naiveHf", width, height)} className="chart-line hf-line" />
+          <polyline points={linePath(rows, "ours", width, height)} className="chart-line ours-line" />
+          <polyline points={linePath(rows, "vllm", width, height)} className="chart-line vllm-line" />
+          {xTicks.map((tick) => (
+            <text key={tick.label} x={tick.x} y={height - 2} className="chart-tick">
+              {tick.label}
+            </text>
+          ))}
+        </svg>
       </div>
       <div className="legend-row" aria-hidden="true">
         <span><i className="legend ours" />inferd</span>
@@ -119,4 +73,3 @@ export default function ThroughputChart({
     </section>
   );
 }
-

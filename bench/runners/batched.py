@@ -9,8 +9,6 @@ PagedKVCache blocks end-to-end.
 
 from __future__ import annotations
 
-import dataclasses
-import json
 import random
 import time
 from math import ceil
@@ -20,7 +18,7 @@ import inferd.env  # noqa: F401  (CUDA preload before torch)
 
 import torch  # noqa: E402
 
-from bench.metrics import BenchResult, ConcurrencySweepPoint, VramSampler, env_stamp, throughput  # noqa: E402
+from bench.metrics import BenchResult, ConcurrencySweepPoint, VramSampler, env_stamp, throughput, write_result_json  # noqa: E402
 from bench.workload import CANONICAL, GREEDY, MAX_TOKENS, PROMPTS, request_token_budgets, workload_hash  # noqa: E402
 from core.model_runner import ModelRunner  # noqa: E402
 from core.scheduler import (
@@ -282,16 +280,11 @@ def _write_result(
     scheduler_points: list[dict],
     results_dir: Path | None,
 ) -> Path:
-    if results_dir is None:
-        results_dir = Path(__file__).parent.parent / "results"
-    ts = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
-    out_dir = results_dir / f"{ts}_{result.engine}_{Path(result.model).name}"
-    out_dir.mkdir(parents=True, exist_ok=True)
-    out_path = out_dir / "result.json"
-
-    payload = dataclasses.asdict(result)
-    payload["scheduler_points"] = scheduler_points
-    with open(out_path, "w") as fh:
-        json.dump(payload, fh, indent=2)
+    out_path = write_result_json(
+        result,
+        f"{result.engine}_{Path(result.model).name}",
+        results_dir,
+        extra={"scheduler_points": scheduler_points},
+    )
     print(f"\n[batched] Result written to {out_path}")
     return out_path

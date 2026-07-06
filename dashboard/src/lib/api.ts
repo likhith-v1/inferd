@@ -55,63 +55,6 @@ function apiUrl(path: string) {
   return `${API_BASE}${path}`;
 }
 
-function assertNumber(value: unknown, key: string): asserts value is number {
-  if (typeof value !== "number" || Number.isNaN(value)) {
-    throw new Error(`/metrics schema mismatch: ${key} is not a number`);
-  }
-}
-
-function assertString(value: unknown, key: string): asserts value is string {
-  if (typeof value !== "string") {
-    throw new Error(`schema mismatch: ${key} is not a string`);
-  }
-}
-
-export function validateMetrics(value: unknown): MetricsResponse {
-  if (!value || typeof value !== "object") {
-    throw new Error("/metrics schema mismatch: expected object");
-  }
-  const obj = value as Record<string, unknown>;
-  const numericKeys: Array<keyof MetricsResponse> = [
-    "waiting_sequences",
-    "active_sequences",
-    "completed_sequences",
-    "failed_sequences",
-    "admitted_sequences",
-    "evicted_sequences",
-    "iterations",
-    "total_generated_tokens",
-    "used_blocks",
-    "free_blocks",
-    "max_blocks_used",
-    "tokens_per_second",
-    "peak_vram_mb",
-    "uptime_s"
-  ];
-  for (const key of numericKeys) {
-    assertNumber(obj[key], key);
-  }
-  if (obj.last_ttft_s !== null) {
-    assertNumber(obj.last_ttft_s, "last_ttft_s");
-  }
-  assertString(obj.model, "model");
-  return obj as unknown as MetricsResponse;
-}
-
-export function validateHealth(value: unknown): HealthResponse {
-  if (!value || typeof value !== "object") {
-    throw new Error("/healthz schema mismatch: expected object");
-  }
-  const obj = value as Record<string, unknown>;
-  assertString(obj.status, "status");
-  assertString(obj.model, "model");
-  assertString(obj.device, "device");
-  if (typeof obj.engine_alive !== "boolean") {
-    throw new Error("/healthz schema mismatch: engine_alive is not a boolean");
-  }
-  return obj as unknown as HealthResponse;
-}
-
 async function parseError(response: Response) {
   try {
     const body = await response.json();
@@ -129,7 +72,7 @@ export async function fetchMetrics(signal?: AbortSignal): Promise<MetricsRespons
   if (!response.ok) {
     throw new ApiError(response.status, await parseError(response));
   }
-  return validateMetrics(await response.json());
+  return (await response.json()) as MetricsResponse;
 }
 
 export async function fetchHealth(signal?: AbortSignal): Promise<HealthResponse> {
@@ -137,7 +80,7 @@ export async function fetchHealth(signal?: AbortSignal): Promise<HealthResponse>
   if (!response.ok) {
     throw new ApiError(response.status, await parseError(response));
   }
-  return validateHealth(await response.json());
+  return (await response.json()) as HealthResponse;
 }
 
 function dispatchSseChunk(chunk: string, onEvent: (event: GenerateEvent) => void) {

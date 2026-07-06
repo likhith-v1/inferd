@@ -10,13 +10,11 @@ naive contiguous preallocation comparison.
 from __future__ import annotations
 
 import hashlib
-import json
-import time
 from pathlib import Path
 
 import torch
 
-from bench.metrics import env_stamp
+from bench.metrics import env_stamp, write_result_json
 from bench.workload import MAX_TOKENS
 from core.paged_attn import paged_attention
 from core.paged_cache import PagedKVCache
@@ -234,13 +232,6 @@ def run(
 
 
 def _write(result: dict, results_dir: Path | None) -> Path:
-    if results_dir is None:
-        results_dir = Path(__file__).parent.parent / "results"
-    ts = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
-    out_dir = results_dir / f"{ts}_paged_cache"
-    out_dir.mkdir(parents=True, exist_ok=True)
-    out_path = out_dir / "result.json"
-    with open(out_path, "w") as fh:
-        json.dump(result, fh, indent=2)
+    out_path = write_result_json(result, "paged_cache", results_dir)
     print(f"\n[paged] result written to {out_path}")
     return out_path

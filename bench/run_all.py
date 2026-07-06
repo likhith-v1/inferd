@@ -115,8 +115,7 @@ def _run_ours_matched(
     "ours vs naive HF" comparison. (The fixed-pool + vary_lengths run is a separate
     continuous-vs-static experiment, not this three-rung throughput curve.)
     """
-    import dataclasses
-    from bench.metrics import BenchResult
+    from bench.metrics import BenchResult, write_result_json
     from bench.runners.batched import run as batched_run
 
     points = []
@@ -139,11 +138,8 @@ def _run_ours_matched(
                "(total_requests == concurrency). Like-for-like work at every batch width.",
                "Numerically equivalent to single-stream (bench.batched_equiv, max|Δlogit| "
                "at the bf16 floor)."])
-    ts = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
-    out = RESULTS / f"{ts}_batched_9b_matched"
-    out.mkdir(parents=True, exist_ok=True)
-    (out / "result.json").write_text(json.dumps(dataclasses.asdict(merged), indent=2))
-    print(f"[run_all] wrote merged matched result to {out}")
+    out = write_result_json(merged, "batched_9b_matched", RESULTS)
+    print(f"[run_all] wrote merged matched result to {out.parent}")
 
 
 def run_spec(

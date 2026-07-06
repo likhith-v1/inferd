@@ -32,7 +32,9 @@ from __future__ import annotations
 import subprocess
 import threading
 import time
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field, is_dataclass
+import json
+from pathlib import Path
 from typing import Optional
 
 
@@ -181,6 +183,27 @@ class BenchResult:
     single_stream: list[SingleStreamResult] = field(default_factory=list)
     concurrency_sweep: list[ConcurrencySweepPoint] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)
+
+
+def write_result_json(
+    payload,
+    out_name: str,
+    results_dir: Path | None = None,
+    *,
+    extra: dict | None = None,
+) -> Path:
+    """Write a timestamped benchmark result.json and return its path."""
+    if results_dir is None:
+        results_dir = Path(__file__).parent / "results"
+    ts = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
+    out_dir = results_dir / f"{ts}_{out_name}"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    data = asdict(payload) if is_dataclass(payload) else dict(payload)
+    if extra:
+        data.update(extra)
+    out_path = out_dir / "result.json"
+    out_path.write_text(json.dumps(data, indent=2))
+    return out_path
 
 
 def env_stamp(seed: int, workload_hash_str: str, extra: Optional[dict] = None) -> dict:

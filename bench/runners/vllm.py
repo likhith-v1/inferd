@@ -24,10 +24,9 @@ import json
 import os
 import subprocess
 import tempfile
-import time
 from pathlib import Path
 
-from bench.metrics import BenchResult, ConcurrencySweepPoint, env_stamp
+from bench.metrics import BenchResult, ConcurrencySweepPoint, env_stamp, write_result_json
 from bench.workload import CANONICAL, GREEDY, MAX_TOKENS, PROMPTS, workload_hash
 
 WEIGHTS_ROOT = Path(__file__).parent.parent.parent / "weights"
@@ -73,13 +72,16 @@ from pathlib import Path
 
 model_dir = sys.argv[1]
 result_path = sys.argv[2]
-seed = int(sys.argv[3])
-max_tokens = int(sys.argv[4])
-profile_name = sys.argv[5]
-concurrency_json = sys.argv[6]
+repo_root = sys.argv[3]
+if repo_root not in sys.path:
+    sys.path.insert(0, repo_root)
+seed = int(sys.argv[4])
+max_tokens = int(sys.argv[5])
+profile_name = sys.argv[6]
+concurrency_json = sys.argv[7]
 concurrency_grid = json.loads(concurrency_json)
 
-prompts_json = sys.argv[7]
+prompts_json = sys.argv[8]
 prompts = json.loads(prompts_json)
 
 from vllm import LLM, SamplingParams
@@ -105,57 +107,7 @@ results = {"concurrency_sweep": [], "notes": [
     "peak_vram_mb ~= 90% of card by design — do not compare naively."
 ]}
 
-import subprocess as _sp
-import threading
-
-
-class _VramSampler:
-    """Poll nvidia-smi during generation (same contract as bench.metrics.VramSampler)."""
-
-    def __init__(self, gpu_index=0, interval_s=0.25):
-        self.gpu_index = gpu_index
-        self.interval_s = interval_s
-        self._peak_mb = 0.0
-        self._stop = threading.Event()
-        self._thread = None
-
-    def _query_mb(self):
-        try:
-            out = _sp.check_output(
-                ["nvidia-smi", f"--id={self.gpu_index}", "--query-gpu=memory.used",
-                 "--format=csv,noheader,nounits"],
-                stderr=_sp.DEVNULL, timeout=2,
-            )
-            return float(out.strip())
-        except Exception:
-            return None
-
-    def _poll(self):
-        while not self._stop.wait(self.interval_s):
-            mb = self._query_mb()
-            if mb is not None and mb > self._peak_mb:
-                self._peak_mb = mb
-
-    def __enter__(self):
-        mb = self._query_mb()
-        if mb is not None:
-            self._peak_mb = mb
-        self._stop.clear()
-        self._thread = threading.Thread(target=self._poll, daemon=True)
-        self._thread.start()
-        return self
-
-    def __exit__(self, *args):
-        self._stop.set()
-        if self._thread:
-            self._thread.join(timeout=5)
-        mb = self._query_mb()
-        if mb is not None and mb > self._peak_mb:
-            self._peak_mb = mb
-
-    @property
-    def peak_mb(self):
-        return self._peak_mb
+from bench.metrics import VramSampler
 
 # Warmup
 print("[vllm-subprocess] Warmup ...", flush=True)
@@ -164,7 +116,7 @@ llm.generate(prompts[:1], sp)
 for c in concurrency_grid:
     batch = [prompts[i % len(prompts)] for i in range(c)]
     t0 = time.perf_counter()
-    with _VramSampler() as vs:
+    with VramSampler() as vs:
         outputs = llm.generate(batch, sp)
     t1 = time.perf_counter()
     wall = t1 - t0
@@ -233,13 +185,9 @@ def run(
     # Write runner script to temp file.
     weights_dir = str(WEIGHTS_ROOT / model_name)
 
-    if results_dir is None:
-        results_dir = Path(__file__).parent.parent / "results"
-
-    ts = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
-    out_dir = results_dir / f"{ts}_vllm_{model_name.replace('/', '_')}"
-    out_dir.mkdir(parents=True, exist_ok=True)
-    subprocess_result_path = str(out_dir / "vllm_subprocess_result.json")
+    subprocess_result = tempfile.NamedTemporaryFile(suffix="_vllm_result.json", delete=False)
+    subprocess_result_path = subprocess_result.name
+    subprocess_result.close()
 
     with tempfile.NamedTemporaryFile(
         mode="w", suffix="_vllm_runner.py", delete=False
@@ -255,6 +203,7 @@ def run(
                 runner_path,
                 weights_dir,
                 subprocess_result_path,
+                str(Path(__file__).resolve().parents[2]),
                 str(seed),
                 str(max_tokens),
                 profile_name,
@@ -270,6 +219,8 @@ def run(
         msg = f"vLLM ceiling deferred — subprocess failed: {exc}"
         print(f"[vllm] {msg}")
         deferred_result.notes.append(msg)
+        if os.path.exists(subprocess_result_path):
+            os.unlink(subprocess_result_path)
         _write_deferred(deferred_result, results_dir)
         return deferred_result
     finally:
@@ -285,6 +236,9 @@ def run(
         deferred_result.notes.append(msg)
         _write_deferred(deferred_result, results_dir)
         return deferred_result
+    finally:
+        if os.path.exists(subprocess_result_path):
+            os.unlink(subprocess_result_path)
 
     sweep = [ConcurrencySweepPoint(**p) for p in sub.get("concurrency_sweep", [])]
     result = BenchResult(
@@ -298,24 +252,11 @@ def run(
         notes=sub.get("notes", []),
     )
 
-    import dataclasses
-    final_path = out_dir / "result.json"
-    with open(final_path, "w") as fh:
-        json.dump(dataclasses.asdict(result), fh, indent=2)
+    final_path = write_result_json(result, f"vllm_{model_name.replace('/', '_')}", results_dir)
     print(f"[vllm] Result written to {final_path}")
     return result
 
 
 def _write_deferred(result: BenchResult, results_dir: Path | None) -> None:
-    import dataclasses
-
-    if results_dir is None:
-        results_dir = Path(__file__).parent.parent / "results"
-
-    ts = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
-    out_dir = results_dir / f"{ts}_vllm_deferred"
-    out_dir.mkdir(parents=True, exist_ok=True)
-    out_path = out_dir / "result.json"
-    with open(out_path, "w") as fh:
-        json.dump(dataclasses.asdict(result), fh, indent=2)
+    out_path = write_result_json(result, "vllm_deferred", results_dir)
     print(f"[vllm] Deferred result written to {out_path}")

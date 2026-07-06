@@ -1,13 +1,3 @@
-import {
-  CartesianGrid,
-  Legend,
-  Line,
-  LineChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis
-} from "recharts";
 import RadialGauge from "../components/RadialGauge";
 import SourceBadge from "../components/SourceBadge";
 import SpecDecodeTimeline from "../components/SpecDecodeTimeline";
@@ -15,11 +5,27 @@ import { sourceLabel } from "../lib/benchmarks";
 import { useDashboard } from "../lib/dashboard";
 import { fixed, rate } from "../lib/format";
 
+type SpecKey = "stockAlpha" | "stockSpeedup" | "distilledAlpha" | "distilledSpeedup";
+
+function specPath(rows: { [K in SpecKey]?: number }[], key: SpecKey, width: number, height: number) {
+  const values = rows.map((row) => row[key]).filter((value): value is number => value !== undefined);
+  const max = Math.max(...values, 1);
+  return rows
+    .map((row, index) => {
+      const x = rows.length <= 1 ? width / 2 : (index / (rows.length - 1)) * width;
+      const y = height - ((row[key] ?? 0) / max) * (height - 16) - 8;
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    })
+    .join(" ");
+}
+
 function SpecChart({ mode }: { mode: "alpha" | "speedup" }) {
   const { benchmarks } = useDashboard();
   const rows = benchmarks.specDecode.rows;
-  const stockKey = mode === "alpha" ? "stockAlpha" : "stockSpeedup";
-  const distilledKey = mode === "alpha" ? "distilledAlpha" : "distilledSpeedup";
+  const stockKey: SpecKey = mode === "alpha" ? "stockAlpha" : "stockSpeedup";
+  const distilledKey: SpecKey = mode === "alpha" ? "distilledAlpha" : "distilledSpeedup";
+  const width = 640;
+  const height = 220;
 
   return (
     <section className="panel chart-panel">
@@ -31,24 +37,25 @@ function SpecChart({ mode }: { mode: "alpha" | "speedup" }) {
         <SourceBadge kind="benchmark" />
       </div>
       <div className="chart-frame" role="img" aria-label={`Spec decode ${mode} by gamma`}>
-        <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={rows} margin={{ top: 8, right: 10, bottom: 0, left: 0 }}>
-            <CartesianGrid stroke="rgba(255,255,255,.07)" vertical={false} />
-            <XAxis dataKey="gamma" tick={{ fill: "#85868b", fontSize: 11 }} axisLine={false} tickLine={false} />
-            <YAxis tick={{ fill: "#85868b", fontSize: 11 }} axisLine={false} tickLine={false} width={42} />
-            <Tooltip
-              contentStyle={{
-                background: "#1c1c20",
-                border: "1px solid rgba(255,255,255,.12)",
-                borderRadius: 14,
-                color: "#f2f3f4"
-              }}
-            />
-            <Legend wrapperStyle={{ color: "#85868b", fontSize: 12 }} />
-            <Line type="monotone" dataKey={stockKey} name="stock draft" stroke="#75767b" strokeWidth={2} dot={{ r: 4 }} isAnimationActive={false} />
-            <Line type="monotone" dataKey={distilledKey} name="distilled draft" stroke="#f2f3f5" strokeWidth={3} dot={{ r: 4 }} isAnimationActive={false} />
-          </LineChart>
-        </ResponsiveContainer>
+        <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" aria-hidden="true">
+          {[0.25, 0.5, 0.75].map((y) => (
+            <line key={y} x1="0" x2={width} y1={height * y} y2={height * y} className="chart-grid" />
+          ))}
+          <polyline points={specPath(rows, stockKey, width, height)} className="chart-line vllm-line" />
+          <polyline points={specPath(rows, distilledKey, width, height)} className="chart-line ours-line" />
+          {rows.map((row, index) => {
+            const x = rows.length <= 1 ? width / 2 : (index / (rows.length - 1)) * width;
+            return (
+              <text key={row.gamma} x={x} y={height - 2} className="chart-tick">
+                {row.gamma}
+              </text>
+            );
+          })}
+        </svg>
+      </div>
+      <div className="legend-row" aria-hidden="true">
+        <span><i className="legend vllm" />stock draft</span>
+        <span><i className="legend ours" />distilled draft</span>
       </div>
     </section>
   );

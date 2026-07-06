@@ -15,7 +15,6 @@ workload_hash). Results are append-only JSON under bench/results/.
 
 from __future__ import annotations
 
-import json
 import time
 from pathlib import Path
 from typing import Optional
@@ -24,7 +23,7 @@ import inferd.env  # noqa: F401
 
 import torch  # noqa: E402
 
-from bench.metrics import env_stamp, throughput  # noqa: E402
+from bench.metrics import env_stamp, throughput, write_result_json  # noqa: E402
 from bench.workload import CANONICAL, MAX_TOKENS, PROMPTS, workload_hash  # noqa: E402
 from core.spec_decode import nucleus_probs, sample_from, speculative_generate  # noqa: E402
 
@@ -139,13 +138,6 @@ def run(
 
 
 def _write(result: dict, results_dir: Path | None) -> Path:
-    if results_dir is None:
-        results_dir = Path(__file__).parent.parent / "results"
-    ts = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
-    out_dir = results_dir / f"{ts}_spec_{result['draft_label']}"
-    out_dir.mkdir(parents=True, exist_ok=True)
-    out_path = out_dir / "result.json"
-    with open(out_path, "w") as fh:
-        json.dump(result, fh, indent=2)
+    out_path = write_result_json(result, f"spec_{result['draft_label']}", results_dir)
     print(f"\n[spec] result written to {out_path}")
     return out_path
