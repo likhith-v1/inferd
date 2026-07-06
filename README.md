@@ -180,7 +180,9 @@ inferd/
 ├── tests/                  # Unit + equivalence tests
 ├── scripts/                # smoke_load.py and other entrypoints
 ├── docs/                   # ENVIRONMENT.md and setup notes
-├── plans/                  # Phased execution pack (00–11)
+├── plans/                  # Phased execution pack
+│   ├── shipped/            # v1 phases 00–11 (implemented, shipped as v0.1.0)
+│   └── future/             # post-v0.1.0 roadmap (00 index + phases 12–17)
 ├── plan.md                 # Design vision
 ├── DECISIONS.md            # Load-bearing decisions with dates
 └── uv.lock                 # Pinned dependency lockfile
@@ -339,19 +341,27 @@ The Vite dev server proxies `/metrics`, `/healthz`, and `/generate` to
 
 Build order: **harness → QLoRA → spec-decode (+ α-lift) → paged cache → continuous batching → serving → dashboard → FP8 hero**. Each phase is a defensible stopping point.
 
-Development uses one git worktree per phase (`phase-NN-slug` → merge into `dev` in order). See `plans/00_MASTER_ORCHESTRATION.md` for cross-phase rules.
+Development uses one git worktree per phase (`phase-NN-slug` → merge into `dev` in order). See `plans/shipped/00_MASTER_ORCHESTRATION.md` for cross-phase rules. The implemented v1 pack (phases 00–11) lives in `plans/shipped/`; the not-yet-committed follow-up work is in `plans/future/` (see [Future work](#future-work)).
 
 ---
 
-## Future plans
+## Future work
 
-Not committed — early ideation and follow-ups beyond the v1 CUDA stack:
+Not committed — the post-`v0.1.0` roadmap. Each item is scoped as a phase file in
+[`plans/future/`](plans/future/) (with [`plans/future/00_FUTURE_ROADMAP.md`](plans/future/00_FUTURE_ROADMAP.md)
+as the index), the same execution-pack convention the shipped v1 phases use. Every
+item ties to a real gap or measured finding in [`DECISIONS.md`](DECISIONS.md).
 
-- **Apple Silicon port** — out of scope for this CUDA v1; a separate Metal/MLX exploration may happen later.
-- **Persistent paged runtime KV cache** — wire the phase-05 block allocator into live decode instead of stacking HF caches.
-- **Batched speculative decoding** — extend accept/replay through the continuous batching scheduler.
-- **vLLM ceiling on Blackwell** — re-run when sm_120 wheels are available.
-- **Triton paged-attention kernel** — replace the reference Python path with a fused kernel.
+Priority order (as decided with the maintainer — MLX reach first, then engine-completion by leverage):
+
+1. **MLX / Apple Silicon port (top priority)** — a *separate* Metal/MLX track to serve the engine on Apple Silicon. Explicitly *out of scope for the CUDA v1* (AGENTS.md pins the v1 stack to CUDA/Blackwell and bans MLX there); a distinct codebase behind the same `forward` seam, not a change to the v1 runtime. → `plans/future/12`
+2. **Persistent paged runtime KV cache** — wire the phase-05 block allocator into live decode instead of stacking HF caches, turning the analytic VRAM win into a measured one. The highest-*integrity* item; unblocks the kernel, prefix-sharing, and KV-quant. → `plans/future/13`
+3. **Full-attention target, spec-decode net-positive** — the highest-leverage single experiment: the ~0.6–0.7× wall-clock was the *hybrid linear-attention replay tax*, not the method, so a croppable-KV target should flip it net-positive. → `plans/future/14`
+4. **Triton paged-attention kernel** — replace the reference Python path with a fused kernel (needs #2). → `plans/future/15`
+5. **Batched speculative decoding** — extend accept/replay through the continuous-batching scheduler; measured honestly (may stay net-negative on hybrid). → `plans/future/16`
+6. **vLLM ceiling on Blackwell** — re-run when sm_120 wheels are available. → `plans/future/17`
+
+Backlog (not yet scoped into phase files, in `plans/future/00`): MoE (35B-A3B) native multi-token prediction as a self-speculation baseline, prefix-sharing via copy-on-write KV blocks, DPO/GRPO post-training, chunked prefill + quantized KV-cache, per-request sampling, and a streaming/sharded 27B merge.
 
 ---
 

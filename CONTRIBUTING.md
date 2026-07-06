@@ -27,12 +27,13 @@ Validate the stack with `uv run python scripts/smoke_load.py`.
 
 ## Workflow
 
-- **Read first, then write.** Read the relevant `plans/NN_*.md` and reuse what
-  already exists — don't re-implement helpers, types, or patterns that live here.
+- **Read first, then write.** Read the relevant `plans/shipped/NN_*.md` (v1) or
+  `plans/future/NN_*.md` (follow-up work) and reuse what already exists — don't
+  re-implement helpers, types, or patterns that live here.
 - **One worktree per phase:** branch `phase-NN-slug`, merge into `dev` in phase
   order; `dev` → `main` at milestones.
 - **`core/model_runner.py` is the shared hot file** — extend it via new methods
-  per the interface contract in `plans/00`; don't rewrite another phase's method.
+  per the interface contract in `plans/shipped/00`; don't rewrite another phase's method.
 
 ## Quality gates (before opening a PR)
 
