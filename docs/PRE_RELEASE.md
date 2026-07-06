@@ -5,7 +5,20 @@ dashboard, benchmark report, and FP8 27B capacity proof are implemented and
 measured. The items below are the remaining checks before cutting a tagged
 release.
 
-## Status — `v0.1.0` released (2026-07-03)
+## Status — `v0.1.1` released (2026-07-06)
+
+Patch over `v0.1.0` — benchmark JSON output, dashboard charting polish, and internal
+cleanup (`core/model_runner.py`, `inferd/__init__.py`, `inferd/env.py`). Gates for this cut:
+
+- **Dashboard gate** — `bun run lint` + `bun run build`: **PASS**.
+- **Headline agreement** — README / `bench/report.md` / `benchmarks.json` consistent
+  (19.8×, 461.8 tok/s).
+- **GPU spot-checks** — **not re-run for this cut**; pending on the RTX 5090 box. The diff
+  touches `core/model_runner.py`, so rerun `paged_equiv --mode both` and `batched_equiv`
+  (see *Required Before Tagging* below) to confirm numerical equivalence held.
+- **Under-load demo video** — remains intentionally waived.
+
+### `v0.1.0` released (2026-07-03)
 
 First stable release cut off `main`, superseding pre-release `v0.1.0-rc.1`. Sign-off:
 
