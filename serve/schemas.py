@@ -8,6 +8,8 @@ from pydantic import BaseModel, Field
 class GenerateRequest(BaseModel):
     prompt: str = Field(..., min_length=1)
     max_tokens: int = Field(256, gt=0)
+    temperature: float | None = Field(None, ge=0.0)
+    top_p: float | None = Field(None, gt=0.0, le=1.0)
 
 
 class MetricsResponse(BaseModel):

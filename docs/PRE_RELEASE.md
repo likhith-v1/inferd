@@ -5,6 +5,30 @@ dashboard, benchmark report, and FP8 27B capacity proof are implemented and
 measured. The items below are the remaining checks before cutting a tagged
 release.
 
+## Status — `v0.1.5` staged, not yet tagged (2026-07-15)
+
+Patch over `v0.1.1` — adds per-request sampling (`temperature`/`top_p` overridable
+per `/generate` call, resolved against the server default when omitted; see
+`DECISIONS.md` 2026-07-15 entry). Gates for this cut:
+
+- **No-GPU gate** — **not run from the authoring session**: that session ran on
+  macOS/arm64, and `uv run` cannot resolve the project's environment there at all
+  (`causal-conv1d` is pinned to a `linux_x86_64` CUDA wheel with no macOS build).
+  The new/updated tests (`tests/test_scheduler.py`:
+  `test_submit_resolves_per_request_sampling_against_config_default`,
+  `test_sample_next_reads_per_request_not_shared_config`; `tests/test_serve.py`:
+  `test_generate_passes_per_request_sampling_to_engine`,
+  `test_generate_omits_sampling_defaults_to_none`) were written and manually
+  traced against the code, but never executed. **Must run
+  `uv run python -m unittest discover -s tests -v` (plus the usual selfchecks) on
+  the WSL2/RTX 5090 box before tagging.**
+- **Dashboard gate** — unaffected: this change does not touch `dashboard/`.
+  `bun run lint && bun run build` still recommended as a sanity check.
+- **GPU spot-checks** — the diff touches `core/scheduler.py` (sampling only, not
+  attention/cache logic), not `core/model_runner.py`; `paged_equiv`/`batched_equiv`
+  are not expected to be affected, but were not re-run for this cut.
+- **Under-load demo video** — remains intentionally waived.
+
 ## Status — `v0.1.1` released (2026-07-06)
 
 Patch over `v0.1.0` — benchmark JSON output, dashboard charting polish, and internal

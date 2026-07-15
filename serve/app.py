@@ -100,7 +100,9 @@ def create_app(engine: Engine | None = None) -> FastAPI:
         if violation:
             raise HTTPException(status_code=400, detail=violation)
         try:
-            channel = eng.submit(prompt_ids, body.max_tokens)
+            channel = eng.submit(
+                prompt_ids, body.max_tokens, temperature=body.temperature, top_p=body.top_p
+            )
         except RuntimeError as exc:
             raise HTTPException(status_code=503, detail=str(exc)) from exc
         if channel is None:

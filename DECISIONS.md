@@ -297,3 +297,25 @@ Blackwell stack. Treat FP8 here as a capacity tool, not a latency win.
   output was coherent but repetitive (`Paris...` continuation).
 - **Decision:** Count Phase 10 as a local capacity proof, not a latency win or a
   true standalone merged-FP8 artifact.
+
+## 2026-07-15 — Per-request sampling (closes the Phase 07 open item)
+
+- **What changed:** `GenerateRequest` gains optional `temperature`/`top_p` fields
+  (`serve/schemas.py`); `None` resolves to the server's `SchedulerConfig` default,
+  so existing clients sending only `prompt`/`max_tokens` are unaffected. The
+  override threads through `Engine.submit` -> `_Submit` -> `scheduler.submit`,
+  which resolves it onto the per-request `GenerationRequest.temperature`/`.top_p`
+  (same pattern as the existing per-request `max_tokens`). `_sample_next` now
+  reads `req.temperature`/`req.top_p` instead of `self.config.temperature`/
+  `self.config.top_p`, so two concurrently-running requests in the same batched
+  `step()` can sample with different parameters.
+- **Scope, deliberately narrow:** only `temperature`/`top_p` — the two knobs
+  `nucleus_probs` already supports. `top_k` does not exist anywhere in the
+  codebase and was not added (that would be a new sampling strategy, not making
+  an existing one per-request).
+- **Still open (honest):** `seed` remains server-level — `torch.manual_seed`
+  is set once at scheduler construction. Per-request reproducible sampling would
+  need a persistent `torch.Generator` per request threaded through
+  `sample_from`, which is a larger change than this backlog item asked for.
+  The dashboard (`Playground.tsx`) was not updated to expose these fields; this
+  is a backend/API capability change only.

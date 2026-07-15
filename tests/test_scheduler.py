@@ -1,6 +1,7 @@
 """Unit tests for ``core.scheduler.ContinuousBatchScheduler`` (fake backend)."""
 
 import unittest
+from unittest.mock import patch
 
 import torch
 
@@ -9,6 +10,7 @@ from core.scheduler import (
     RequestStatus,
     SchedulerConfig,
 )
+from core.spec_decode import nucleus_probs
 
 
 class FakeBackend:
@@ -185,6 +187,34 @@ class SchedulerTest(unittest.TestCase):
         self.assertTrue(scheduler.cancel(2))
         self.assertEqual(scheduler.get(2).status, RequestStatus.CANCELLED)
         self.assertEqual(scheduler.metrics_snapshot().waiting_sequences, 0)
+
+    def test_submit_resolves_per_request_sampling_against_config_default(self):
+        scheduler = ContinuousBatchScheduler(
+            FakeBackend(),
+            SchedulerConfig(max_blocks=10, block_size=4, temperature=0.0, top_p=1.0),
+        )
+        scheduler.submit([1], max_tokens=5, request_id=1)
+        scheduler.submit([1], max_tokens=5, request_id=2, temperature=0.8, top_p=0.5)
+
+        self.assertEqual(scheduler.get(1).temperature, 0.0)
+        self.assertEqual(scheduler.get(1).top_p, 1.0)
+        self.assertEqual(scheduler.get(2).temperature, 0.8)
+        self.assertEqual(scheduler.get(2).top_p, 0.5)
+
+    def test_sample_next_reads_per_request_not_shared_config(self):
+        scheduler = ContinuousBatchScheduler(
+            FakeBackend(),
+            SchedulerConfig(max_blocks=10, block_size=4, temperature=0.0, top_p=1.0),
+        )
+        scheduler.submit([1], max_tokens=5, request_id=1)
+        scheduler.submit([1], max_tokens=5, request_id=2, temperature=0.8, top_p=0.5)
+
+        with patch("core.scheduler.nucleus_probs", wraps=nucleus_probs) as spy:
+            scheduler.step()
+
+        calls = {call.args[1:] for call in spy.call_args_list}
+        self.assertIn((0.0, 1.0), calls)
+        self.assertIn((0.8, 0.5), calls)
 
     def test_cancel_unknown_or_terminal_returns_false(self):
         scheduler = ContinuousBatchScheduler(

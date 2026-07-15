@@ -33,6 +33,7 @@ class FakeEngine:
         self._fail = fail
         self.cancels: list[int] = []
         self._next_id = 1
+        self.last_submit_kwargs: dict | None = None
 
     def start(self): ...
     def stop(self): ...
@@ -43,7 +44,8 @@ class FakeEngine:
     def limit_violation(self, prompt_len, max_tokens):
         return self._violation
 
-    def submit(self, prompt_ids, max_tokens):
+    def submit(self, prompt_ids, max_tokens, *, temperature=None, top_p=None):
+        self.last_submit_kwargs = {"temperature": temperature, "top_p": top_p}
         if self._saturated:
             return None
         rid = self._next_id
@@ -95,6 +97,18 @@ class ServeTest(unittest.TestCase):
         self.assertEqual(events[-1]["tokens"], 3)
         # the stream's finally always frees blocks (idempotent cancel)
         self.assertIn(1, engine.cancels)
+
+    def test_generate_passes_per_request_sampling_to_engine(self):
+        engine = FakeEngine(n_tokens=1)
+        with TestClient(create_app(engine=engine)) as client:
+            client.post("/generate", json={"prompt": "hi", "temperature": 0.9, "top_p": 0.5})
+        self.assertEqual(engine.last_submit_kwargs, {"temperature": 0.9, "top_p": 0.5})
+
+    def test_generate_omits_sampling_defaults_to_none(self):
+        engine = FakeEngine(n_tokens=1)
+        with TestClient(create_app(engine=engine)) as client:
+            client.post("/generate", json={"prompt": "hi"})
+        self.assertEqual(engine.last_submit_kwargs, {"temperature": None, "top_p": None})
 
     def test_generation_error_is_streamed(self):
         engine = FakeEngine(n_tokens=1, fail=True)
@@ -158,7 +172,7 @@ class _RaisingScheduler:
     def __init__(self):
         self._has_work = False
 
-    def submit(self, prompt_ids, max_tokens, request_id):
+    def submit(self, prompt_ids, max_tokens, request_id, temperature=None, top_p=None):
         self._has_work = True
 
     def cancel(self, request_id):
@@ -250,7 +264,7 @@ class EngineCrashTest(unittest.IsolatedAsyncioTestCase):
 class _RaisingSubmitScheduler:
     """Fake scheduler whose submit() raises — a bad request must not kill the loop."""
 
-    def submit(self, prompt_ids, max_tokens, request_id):
+    def submit(self, prompt_ids, max_tokens, request_id, temperature=None, top_p=None):
         raise ValueError("max_tokens must be positive")
 
     def cancel(self, request_id):

@@ -60,6 +60,8 @@ class GenerationRequest:
     prompt_ids: list[int]
     max_tokens: int
     prompt_text: str = ""
+    temperature: float = 0.0
+    top_p: float = 1.0
     status: RequestStatus = RequestStatus.WAITING
     generated_ids: list[int] = field(default_factory=list)
     error: str | None = None
@@ -184,6 +186,8 @@ class ContinuousBatchScheduler:
         max_tokens: int,
         prompt_text: str = "",
         request_id: int | None = None,
+        temperature: float | None = None,
+        top_p: float | None = None,
     ) -> int:
         if max_tokens <= 0:
             raise ValueError("max_tokens must be positive")
@@ -194,6 +198,8 @@ class ContinuousBatchScheduler:
             prompt_ids=ids,
             max_tokens=max_tokens,
             prompt_text=prompt_text,
+            temperature=self.config.temperature if temperature is None else temperature,
+            top_p=self.config.top_p if top_p is None else top_p,
         )
         self._waiting.append(req)
         return rid
@@ -209,7 +215,7 @@ class ContinuousBatchScheduler:
         active: list[GenerationRequest] = []
         for req in list(self._running.values()):
             assert req.last_logits is not None
-            next_id = self._sample_next(req.last_logits)
+            next_id = self._sample_next(req)
             req.generated_ids.append(next_id)
             self._total_generated += 1
             if next_id == self.backend.eos_token_id or req.generated_len >= req.max_tokens:
@@ -331,8 +337,8 @@ class ContinuousBatchScheduler:
         req.error = error
         self._failed[req.request_id] = req
 
-    def _sample_next(self, logits: torch.Tensor) -> int:
-        probs = nucleus_probs(logits, self.config.temperature, self.config.top_p)
+    def _sample_next(self, req: GenerationRequest) -> int:
+        probs = nucleus_probs(req.last_logits, req.temperature, req.top_p)
         return int(sample_from(probs).item())
 
     def _reserved_blocks(self, req: GenerationRequest) -> int:

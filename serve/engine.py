@@ -41,6 +41,8 @@ class _Submit:
     prompt_ids: list[int]
     max_tokens: int
     channel: "StreamChannel"
+    temperature: float | None = None
+    top_p: float | None = None
 
 
 @dataclass
@@ -135,7 +137,14 @@ class Engine:
             return f"request needs {needed} blocks, budget is {cfg.max_blocks}"
         return None
 
-    def submit(self, prompt_ids: list[int], max_tokens: int) -> StreamChannel | None:
+    def submit(
+        self,
+        prompt_ids: list[int],
+        max_tokens: int,
+        *,
+        temperature: float | None = None,
+        top_p: float | None = None,
+    ) -> StreamChannel | None:
         """
         Register a request and return its StreamChannel, or None if the engine is
         saturated (caller should respond 429). Must be called from the event loop
@@ -149,7 +158,9 @@ class Engine:
             self._inflight += 1
         request_id = next(self._id_counter)
         channel = StreamChannel(request_id, asyncio.get_running_loop())
-        self._inbox.put(_Submit(request_id, prompt_ids, max_tokens, channel))
+        self._inbox.put(
+            _Submit(request_id, prompt_ids, max_tokens, channel, temperature=temperature, top_p=top_p)
+        )
         self._wake.set()
         if not self.alive or self._fatal is not None:
             # Engine died between the alive check and here; ensure this client is
@@ -204,7 +215,11 @@ class Engine:
             if isinstance(cmd, _Submit):
                 try:
                     self.scheduler.submit(
-                        cmd.prompt_ids, max_tokens=cmd.max_tokens, request_id=cmd.request_id
+                        cmd.prompt_ids,
+                        max_tokens=cmd.max_tokens,
+                        request_id=cmd.request_id,
+                        temperature=cmd.temperature,
+                        top_p=cmd.top_p,
                     )
                 except Exception as exc:  # a bad request must fail only itself, not kill the loop
                     cmd.channel.push(Error(f"rejected: {exc}"))
