@@ -35,6 +35,7 @@ from bench.workload import (
     MAX_TOKENS,
     PROMPTS,
     SamplingProfile,
+    model_fingerprint,
     workload_hash,
 )
 from core.spec_decode import nucleus_probs
@@ -250,6 +251,7 @@ def run(
     profile_name: str = "canonical",
     results_dir: Path | None = None,
     device: str = "cuda:0",
+    cohort_id: str | None = None,
 ) -> BenchResult:
     """
     Run the full HF floor benchmark and return a BenchResult.
@@ -278,6 +280,16 @@ def run(
         profile=profile_name,
         max_tokens=max_tokens,
         env=stamp,
+        cohort_id=cohort_id,
+        provenance={
+            "model_fingerprint": model_fingerprint(weights_dir),
+            "workload_hash": wh,
+            "profile": profile_name,
+            "seed": seed,
+            "max_tokens": max_tokens,
+            "warmup_runs": warmup_runs,
+            "concurrency_grid": list(concurrency_grid),
+        },
     )
 
     # 1. Single-stream on all prompts.

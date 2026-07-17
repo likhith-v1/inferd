@@ -17,6 +17,7 @@ export default function Overview() {
   const headroomMb = peakVram === null ? null : Math.max(0, vramTotal - peakVram);
   const headroomPct = headroomMb === null || vramTotal <= 0 ? null : (headroomMb / vramTotal) * 100;
   const headline = benchmarks.throughput.headline;
+  const ceiling = benchmarks.throughput.ceiling;
 
   const spark = history.slice(-14).map((point) => point.tokensPerSecond);
   let tpsDelta: KpiDelta | undefined;
@@ -72,8 +73,8 @@ export default function Overview() {
 
           <ThroughputBars
             rows={benchmarks.throughput.rows}
-            peakConcurrency={headline.concurrency}
-            delta={headline.speedup ? `${fixed(headline.speedup, 2)}×` : undefined}
+            peakConcurrency={ceiling?.concurrency ?? headline.concurrency}
+            delta={ceiling?.ratio ? `within ${fixed(ceiling.ratio, 1)}× of vLLM` : undefined}
             ariaLabel={`Benchmark throughput bars by concurrency, peak ${sourceLabel(benchmarks)}`}
           />
         </div>

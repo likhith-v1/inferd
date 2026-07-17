@@ -19,7 +19,7 @@ import inferd.env  # noqa: F401  (CUDA preload before torch)
 import torch  # noqa: E402
 
 from bench.metrics import BenchResult, ConcurrencySweepPoint, VramSampler, env_stamp, throughput, write_result_json  # noqa: E402
-from bench.workload import CANONICAL, GREEDY, MAX_TOKENS, PROMPTS, request_token_budgets, workload_hash  # noqa: E402
+from bench.workload import CANONICAL, GREEDY, MAX_TOKENS, PROMPTS, model_fingerprint, request_token_budgets, workload_hash  # noqa: E402
 from core.model_runner import ModelRunner  # noqa: E402
 from core.scheduler import (
     ContinuousBatchScheduler,
@@ -183,6 +183,7 @@ def run(
     total_requests: int | None = None,
     static_baseline: bool = False,
     vary_lengths: bool = False,
+    cohort_id: str | None = None,
 ) -> BenchResult:
     if concurrency_grid is None:
         concurrency_grid = [1, 2, 4, 8, 16]
@@ -206,6 +207,16 @@ def run(
         profile=profile_name,
         max_tokens=max_tokens,
         env=env_stamp(seed, workload_hash(profile, max_tokens)),
+        cohort_id=cohort_id,
+        provenance={
+            "model_fingerprint": model_fingerprint(model_path),
+            "workload_hash": workload_hash(profile, max_tokens),
+            "profile": profile_name,
+            "seed": seed,
+            "max_tokens": max_tokens,
+            "warmup_runs": warmup_runs,
+            "concurrency_grid": list(concurrency_grid),
+        },
         notes=[
             "FCFS continuous batching with one batched decode forward per iteration.",
             "Batched decode equivalence is covered by bench.batched_equiv.",

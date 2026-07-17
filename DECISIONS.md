@@ -319,3 +319,52 @@ Blackwell stack. Treat FP8 here as a capacity tool, not a latency win.
   `sample_from`, which is a larger change than this backlog item asked for.
   The dashboard (`Playground.tsx`) was not updated to expose these fields; this
   is a backend/API capability change only.
+
+## 2026-07-17 — Phase 17: vLLM ceiling on Blackwell (sm_120), measured
+
+- **Outcome:** vLLM `0.23.0` (torch `2.11.0`, CUDA `13.0`) runs on the RTX 5090
+  (sm_120) and produces a real three-rung ceiling. The "within K× of vLLM"
+  framing is closed: **ours is within ~4.6× at c=32** (ours `449.9` vs vLLM
+  `2079.1` tok/s). Deferred status is retired.
+- **Isolated environment:** vLLM and its torch pin never enter the main project
+  env. Definition + lock live in `bench/vllm/` (`pyproject.toml` + `uv.lock`),
+  synced into `bench/.venv-vllm` with `uv sync --locked`. The runner
+  (`bench/runners/vllm.py`) executes vLLM in that env as a subprocess.
+- **Fix 1 — spawn guard (required):** vLLM on WSL forces the `spawn`
+  multiprocessing start method (CUDA initialised; NVML not fork-safe under WSL),
+  which re-imports the runner script in every engine-core worker. The generated
+  `_RUNNER_SCRIPT` now runs all logic under `if __name__ == "__main__"`; without
+  it, load crashes with "An attempt has been made to start a new process before
+  the current process has finished its bootstrapping phase."
+- **Fix 2 — native Torch sampler (documented compatibility flag):** FlashInfer's
+  top-k/top-p sampler JIT-compiles a CUDA kernel at runtime, and its bundled CCCL
+  headers are incompatible with the cu13 toolkit on sm_120 ("CUDA compiler and
+  CUDA toolkit headers are incompatible"). We set `VLLM_USE_FLASHINFER_SAMPLER=0`
+  (native Torch sampler). **Everything else is stock vLLM**: FlashAttention-2,
+  CUDA graphs enabled (no `enforce_eager`), bf16, `gpu_memory_utilization=0.9`,
+  text-only (`language_model_only=True`). For the greedy cohort this is argmax
+  either way (numerically identical), and the sampler is a negligible fraction of
+  decode time, so the ceiling stays representative. This is the *only* behavioural
+  deviation from vLLM defaults, and it is recorded in each result's
+  `effective_config`/`notes`. (Pointing `CUDA_HOME` at the shipped `nvidia/cu13`
+  wheel makes nvcc discoverable but the CCCL header mismatch remains, so the JIT
+  path was abandoned in favour of the native sampler.)
+- **Integration:** the three-rung cohort ties `hf`, `ours`, and `vllm` results
+  to one `cohort_id` with a matched-provenance guard (identical model
+  fingerprint, workload hash, greedy profile, seed 0, max-tokens 96, warmups 3,
+  grid `1,2,4,8,16,32`). The `hf`/`batched` runners were threaded to emit that
+  provenance (they previously did not, so the cohort could not assemble). All
+  rungs use the **stock `weights/Qwen3.5-9B`**, not `merged/9b`.
+- **GPU reclamation between rungs:** `run_all.run_rungs` now calls
+  `torch.cuda.empty_cache()` between the in-process `hf` and `ours` rungs (and
+  between the per-`c` batched loads). Without it the HF floor's 9B stayed
+  resident and starved the ours paged cache — the first cohort run measured ours
+  c=1 at `9.5` tok/s / `31.6 GiB`; after reclamation, `44.1` tok/s / `18.9 GiB`.
+- **Reproducibility (gate 4) — the honest caveat:** a c=1/c=32 repeat shows ours
+  and vLLM reproduce within ~2% (ceiling ratio `4.62×` → `4.56×`), but the
+  **naive-HF floor at c=32 is not reproducible** (`8.9` ↔ `27.7` tok/s — it
+  thrashes at the 32 GB card edge). Therefore the **vLLM-ceiling ratio is the
+  headline** (stable), and the ours-vs-HF ratio is reported as a **range
+  (~16–50× at c=32)**, never a single fragile number. Persisted to
+  `bench/results/phase17_variance.json` and rendered in `bench/report.md`
+  (Reproducibility section), the README, and the dashboard.

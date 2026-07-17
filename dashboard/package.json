@@ -8,7 +8,8 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview --host 0.0.0.0",
-    "snapshot:bench": "node scripts/snapshot-bench.mjs"
+    "snapshot:bench": "node scripts/snapshot-bench.mjs",
+    "test:snapshot": "node --test scripts/snapshot-selection.test.mjs"
   },
   "dependencies": {
     "lucide-react": "^0.468.0",

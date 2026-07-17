@@ -22,6 +22,12 @@ export interface BenchmarkSnapshot {
   reportPath: string;
   reportHeadline: string;
   sources: Record<string, string | null>;
+  cohort: {
+    id: string | null;
+    status: "complete" | "pending";
+    modelFingerprint: string | null;
+    workloadHash: string | null;
+  };
   environment: {
     gpuName: string;
     cudaVersion: string | null;
@@ -39,6 +45,13 @@ export interface BenchmarkSnapshot {
       oursTokS: number | null;
       speedup: number | null;
     };
+    ceiling: {
+      concurrency: number;
+      oursTokS: number | null;
+      vllmTokS: number | null;
+      ratio: number | null;
+    } | null;
+    oursVsHfRange: { low: number; high: number } | null;
     vllmStatus: string;
   };
   vram: {
@@ -79,4 +92,3 @@ export interface BenchmarkSnapshot {
 export function sourceLabel(snapshot: BenchmarkSnapshot) {
   return `benchmark · report.md @ ${snapshot.benchmarkCommit}`;
 }
-

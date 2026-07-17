@@ -15,6 +15,7 @@ import hashlib
 import json
 import random
 from dataclasses import dataclass
+from pathlib import Path
 
 
 @dataclass(frozen=True)
@@ -136,3 +137,35 @@ def workload_hash(
         sort_keys=True,
     ).encode()
     return hashlib.sha256(payload).hexdigest()[:16]
+
+
+def model_fingerprint(path: Path) -> str:
+    """Return a stable fingerprint for a resolved local model artifact.
+
+    Multi-gigabyte tensor shards are represented by relative filename and byte
+    size, while configuration/tokenizer text is hashed in full.  This is fast
+    enough to run in every benchmark rung while still detecting the model-dir
+    drift that would invalidate an apples-to-apples cohort.
+    """
+    model_dir = path.expanduser().resolve()
+    if not model_dir.is_dir():
+        raise FileNotFoundError(f"model directory does not exist: {model_dir}")
+
+    digest = hashlib.sha256()
+    files = sorted(
+        (candidate for candidate in model_dir.rglob("*") if candidate.is_file()),
+        key=lambda candidate: candidate.relative_to(model_dir).as_posix(),
+    )
+    for candidate in files:
+        relative = candidate.relative_to(model_dir).as_posix()
+        size = candidate.stat().st_size
+        digest.update(relative.encode())
+        digest.update(b"\0")
+        digest.update(str(size).encode())
+        digest.update(b"\0")
+        if candidate.suffix.lower() in {".json", ".txt"}:
+            with candidate.open("rb") as handle:
+                for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                    digest.update(chunk)
+        digest.update(b"\0")
+    return digest.hexdigest()[:16]

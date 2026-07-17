@@ -5,6 +5,27 @@ dashboard, benchmark report, and FP8 27B capacity proof are implemented and
 measured. The items below are the remaining checks before cutting a tagged
 release.
 
+## Status — Phase 17 (vLLM ceiling on Blackwell) landed in the working tree (2026-07-17)
+
+Post-`v0.1.5` work, not yet tagged. Fills the deferred vLLM ceiling rung on
+sm_120 (see `DECISIONS.md` 2026-07-17). Gates run this cut:
+
+- **No-GPU gate** — `uv run python -m unittest discover -s tests`: **PASS**
+  (includes new `tests/test_vllm_runner.py`, `tests/test_run_all_cohort.py`).
+- **GPU gates** — on the RTX 5090 box: isolated `bench/.venv-vllm` validates
+  (torch 2.11.0 / vLLM 0.23.0 / CUDA 13.0 / sm_120); text-only load + greedy gen
+  **PASS**; full three-rung cohort assembles and is provenance-validated
+  (**ours within 4.62× of vLLM at c=32**); c=1/c=32 variance repeat done
+  (ceiling ratio stable `4.62→4.56×`; naive-HF floor at c=32 non-reproducible —
+  documented as a range).
+- **Dashboard gate** — `bun run lint` + `bun run build`: **PASS**; `bun test`
+  snapshot-selection: **PASS**. Snapshot regenerated; dashboard leads with the
+  stable ceiling ratio.
+- **Consistency** — README / `bench/report.md` / dashboard snapshot / cohort
+  fingerprint agree on the fresh stock-9B cohort.
+- **Still open before any tag:** the previously-outstanding `v0.1.5` no-GPU gate
+  below (now runnable on this box), and the under-load demo capture.
+
 ## Status — `v0.1.5` staged, not yet tagged (2026-07-15)
 
 Patch over `v0.1.1` — adds per-request sampling (`temperature`/`top_p` overridable

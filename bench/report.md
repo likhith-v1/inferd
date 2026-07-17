@@ -8,31 +8,43 @@
 |---|---|
 | gpu_name | NVIDIA GeForce RTX 5090 |
 | cuda_version | 13.0 |
-| driver_version | 610.62 |
+| driver_version | 610.74 |
 | torch | 2.11.0+cu130 |
 | transformers | 5.3.0 |
 | python | 3.13.14 (main, Jun 23 2026, 15:18:27) [Clang 22.1.3 ] |
-| git_commit | f881a5b |
+| git_commit | 93b6d41 |
 | vram_total_mb | 32607 MiB |
 
 ## Throughput vs concurrency (three rungs)
+
+Cohort: `4cc2a02e4b534c5bbe9e47ae6ee71309` (provenance-validated).
 
 ![throughput](results/plots/throughput_vs_concurrency.png)
 
 | concurrency | naive HF (tok/s) | ours (tok/s) | vLLM (tok/s) |
 |---|---|---|---|
-| 1 | 29.8 | 44.3 | — |
-| 2 | 58.5 | 78.3 | — |
-| 4 | 104.9 | 141.6 | — |
-| 8 | 116.0 | 236.8 | — |
-| 16 | 24.4 | 356.8 | — |
-| 32 | 23.3 | 461.8 | — |
+| 1 | 29.5 | 44.1 | 85.5 |
+| 2 | 56.6 | 75.8 | 152.5 |
+| 4 | 99.9 | 139.9 | 307.8 |
+| 8 | 109.6 | 231.4 | 631.4 |
+| 16 | 24.5 | 343.2 | 1177.8 |
+| 32 | 8.9 | 449.9 | 2079.1 |
 
 ### Headline
 
-- **Ours vs naive HF floor (matched workload):** at concurrency 32, 461.8 vs 23.3 tok/s → **19.80× over the from-scratch naive baseline**; peak speedup **19.80×** at c=32.
-- Continuous batching wins at **every** measured concurrency; the gap widens with load (naive HF has no KV cache and collapses past c=8 on recompute).
-- **vLLM ceiling: pending** on this Blackwell box — reported honestly, not faked. (vLLM ceiling deferred — subprocess failed: vLLM subprocess exited with code 1)
+- **Ours vs vLLM ceiling at c=32 (headline):** 449.9 vs 2079.1 tok/s → within **4.62×** of the production engine, from scratch — the stable, reproducible comparison (both engines are KV-cached/paged).
+- **Ours vs naive HF floor:** continuous batching wins at **every** measured concurrency; the naive floor has no KV cache and collapses past c=8 on quadratic recompute.
+- At c=32 the naive floor is VRAM-thrash-limited and **not reproducible** (measured 8.9–27.7 tok/s across repeats), so ours-vs-HF there is a **range of ~16–50×**, reported as a range rather than a single point.
+
+### Reproducibility (c=1 & c=32 repeat)
+
+Independent repeat of c=1 and c=32 (cohort `58111f09ec134de5b02815631c66e2dc` vs main `4cc2a02e4b534c5bbe9e47ae6ee71309`). The **vLLM ceiling ratio at c=32 is stable**: 4.62× vs 4.56× (-1.4%). ours and vLLM reproduce within ~2%; the **naive-HF floor at c=32 does not** (it thrashes at the 32 GB card edge), which is exactly why the ours-vs-HF ratio there is reported as a range.
+
+| rung | c=1 main | c=1 repeat | Δ% | c=32 main | c=32 repeat | Δ% |
+|---|---|---|---|---|---|---|
+| hf | 29.5 | 28.9 | -2.0 | 8.9 | 27.7 | 211.5 |
+| ours | 44.1 | 43.6 | -1.2 | 449.9 | 457.3 | 1.6 |
+| vllm | 85.5 | 86.5 | 1.1 | 2079.1 | 2084.4 | 0.3 |
 
 ## Peak VRAM vs concurrency
 

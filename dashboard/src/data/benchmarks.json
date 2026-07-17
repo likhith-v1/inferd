@@ -1,22 +1,29 @@
 {
-  "generatedAt": "2026-07-03T04:51:39.908Z",
-  "sourceCommit": "2f0ddb5",
-  "benchmarkCommit": "f881a5b",
+  "generatedAt": "2026-07-17T17:07:28.300Z",
+  "sourceCommit": "93b6d41",
+  "benchmarkCommit": "93b6d41",
   "reportPath": "bench/report.md",
-  "reportHeadline": "**19.80× over the from-scratch naive baseline**",
+  "reportHeadline": "within **4.62×** of the production engine",
   "sources": {
-    "hf": "20260628T084245Z_hf_Qwen3.5-9B",
-    "ours": "20260628T103801Z_batched_9b_matched",
-    "vllm": "20260626T123704Z_vllm_deferred",
+    "hf": "20260717T163929Z_hf_Qwen3.5-9B",
+    "ours": "20260717T164222Z_batched_9b_matched",
+    "vllm": "20260717T164445Z_vllm_Qwen3.5-9B",
+    "vllmDeferred": "20260626T123704Z_vllm_deferred",
     "stockSpec": "20260628T094357Z_spec_stock",
     "distilledSpec": "20260628T095814Z_spec_distilled",
     "paged": "20260627T145545Z_paged_cache",
     "fp8Hero": "20260629T071918Z_fp8_27b_hero"
   },
+  "cohort": {
+    "id": "4cc2a02e4b534c5bbe9e47ae6ee71309",
+    "status": "complete",
+    "modelFingerprint": "720aca733f5e43ac",
+    "workloadHash": "ebc121d5f9503eff"
+  },
   "environment": {
     "gpuName": "NVIDIA GeForce RTX 5090",
     "cudaVersion": "13.0",
-    "driverVersion": "610.62",
+    "driverVersion": "610.74",
     "torch": "2.11.0+cu130",
     "transformers": "5.3.0",
     "python": "3.13.14 (main, Jun 23 2026, 15:18:27) [Clang 22.1.3 ]",
@@ -26,86 +33,96 @@
     "rows": [
       {
         "concurrency": 1,
-        "naiveHf": 29.795,
-        "ours": 44.313,
-        "vllm": null
+        "naiveHf": 29.497,
+        "ours": 44.101,
+        "vllm": 85.483
       },
       {
         "concurrency": 2,
-        "naiveHf": 58.502,
-        "ours": 78.287,
-        "vllm": null
+        "naiveHf": 56.558,
+        "ours": 75.761,
+        "vllm": 152.497
       },
       {
         "concurrency": 4,
-        "naiveHf": 104.913,
-        "ours": 141.594,
-        "vllm": null
+        "naiveHf": 99.898,
+        "ours": 139.853,
+        "vllm": 307.811
       },
       {
         "concurrency": 8,
-        "naiveHf": 116.005,
-        "ours": 236.819,
-        "vllm": null
+        "naiveHf": 109.644,
+        "ours": 231.373,
+        "vllm": 631.382
       },
       {
         "concurrency": 16,
-        "naiveHf": 24.45,
-        "ours": 356.761,
-        "vllm": null
+        "naiveHf": 24.451,
+        "ours": 343.159,
+        "vllm": 1177.814
       },
       {
         "concurrency": 32,
-        "naiveHf": 23.32,
-        "ours": 461.812,
-        "vllm": null
+        "naiveHf": 8.904,
+        "ours": 449.889,
+        "vllm": 2079.093
       }
     ],
     "headline": {
       "concurrency": 32,
-      "naiveHfTokS": 23.3,
-      "oursTokS": 461.8,
-      "speedup": 19.8
+      "naiveHfTokS": 8.9,
+      "oursTokS": 449.9,
+      "speedup": 50.53
     },
-    "vllmStatus": "vLLM ceiling deferred — subprocess failed: vLLM subprocess exited with code 1"
+    "ceiling": {
+      "concurrency": 32,
+      "oursTokS": 449.9,
+      "vllmTokS": 2079.1,
+      "ratio": 4.62
+    },
+    "oursVsHfRange": {
+      "low": 16.5,
+      "high": 50.5
+    },
+    "vllmStatus": "available — validated cohort 4cc2a02e4b534c5bbe9e47ae6ee71309"
   },
   "vram": {
     "rows": [
       {
         "concurrency": 1,
-        "naiveHf": 19611,
-        "ours": 19433,
-        "vllm": null
+        "naiveHf": 19222,
+        "ours": 18913,
+        "vllm": 31828
       },
       {
         "concurrency": 2,
-        "naiveHf": 19611,
-        "ours": 19449,
-        "vllm": null
+        "naiveHf": 19222,
+        "ours": 18929,
+        "vllm": 31828
       },
       {
         "concurrency": 4,
-        "naiveHf": 19625,
-        "ours": 19483,
-        "vllm": null
+        "naiveHf": 19234,
+        "ours": 18965,
+        "vllm": 31828
       },
       {
         "concurrency": 8,
-        "naiveHf": 29511,
-        "ours": 19873,
-        "vllm": null
+        "naiveHf": 29104,
+        "ours": 19374,
+        "vllm": 31832
       },
       {
         "concurrency": 16,
-        "naiveHf": 32136,
-        "ours": 21345,
-        "vllm": null
+        "naiveHf": 32092,
+        "ours": 20838,
+        "vllm": 31832
       },
       {
         "concurrency": 32,
-        "naiveHf": 32049,
-        "ours": 24177,
-        "vllm": null
+        "naiveHf": 32031,
+        "ours": 23682,
+        "vllm": 31832
       }
     ],
     "totalMb": 32607,

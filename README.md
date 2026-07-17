@@ -14,9 +14,9 @@ A from-scratch local LLM inference stack: **QLoRA fine-tuning → speculative de
 The thesis is depth on both ends: fine-tune a showcase model *and* serve it through an engine you built yourself. Most projects stop at "I LoRA'd a model" or "I wrapped vLLM." This repo closes the loop.
 
 <p align="center">
-  <img src="docs/assets/dashboard.png" alt="inferd dashboard — live inference metrics: tokens/sec, draft-acceptance α, VRAM headroom, and the 19.8× throughput-vs-concurrency chart" width="900">
+  <img src="docs/assets/dashboard.png" alt="inferd dashboard — live inference metrics: tokens/sec, draft-acceptance α, VRAM headroom, and the throughput-vs-concurrency chart (naive HF · inferd · vLLM ceiling)" width="900">
   <br>
-  <em>The live React dashboard — streaming metrics, draft-acceptance α, VRAM headroom, and the 19.8× throughput-vs-concurrency chart. Every number traces to a real source.</em>
+  <em>The live React dashboard — streaming metrics, draft-acceptance α, VRAM headroom, and the throughput-vs-concurrency chart (naive HF · inferd · vLLM ceiling). Every number traces to a real source.</em>
 </p>
 
 See [`CONTRIBUTORS.md`](CONTRIBUTORS.md) for maintainer and assistant acknowledgements.
@@ -25,7 +25,7 @@ See [`CONTRIBUTORS.md`](CONTRIBUTORS.md) for maintainer and assistant acknowledg
 
 ## Highlights
 
-- **19.8× throughput over a naive Hugging Face baseline** at concurrency 32 (461.8 tok/s), from iteration-level continuous batching — see [Results](#results).
+- **Within ~4.6× of vLLM at concurrency 32** — 450 tok/s (ours) vs 2,079 tok/s (vLLM 0.23.0) on Blackwell/sm_120, from iteration-level continuous batching. This is the *reproducible* headline (±1.3% across repeats); it also beats the naive HF floor at every concurrency — see [Results](#results).
 - **Exact speculative decoding, not an approximation** — rejection sampling + residual resample, distribution-equivalence gate **PASS @ n=1500**.
 - **A fine-tuned 27B served on a 32 GB card** — QLoRA adapter + load-time FP8 fits at **28.9 GiB** (an honest capacity proof, not a latency win).
 - **Fully local and offline** — one-time weight download, then air-gapped; no cloud or API inference, ever.
@@ -267,14 +267,17 @@ This is a pre-release candidate, not a tagged release: the remaining work is the
 
 Every figure below regenerates with `uv run python bench/run_all.py --plots`; plots land in `bench/results/plots/` and the full table in [`bench/report.md`](bench/report.md).
 
-**Throughput vs concurrency — matched workload, naive HF floor vs the inferd engine (9B, tok/s):**
+**Throughput vs concurrency — matched workload, three rungs on the stock 9B (tok/s), provenance-validated cohort:**
 
 | concurrency | 1 | 4 | 8 | 16 | 32 |
 |---|---|---|---|---|---|
-| naive HF | 29.8 | 104.9 | 116.0 | 24.4 | 23.3 |
-| **inferd** | **44.3** | **141.6** | **236.8** | **356.8** | **461.8** |
+| naive HF (floor) | 29.5 | 99.9 | 109.6 | 24.5 | 8.9* |
+| **inferd** | **44.1** | **139.9** | **231.4** | **343.2** | **449.9** |
+| vLLM (ceiling) | 85.5 | 307.8 | 631.4 | 1177.8 | 2079.1 |
 
-- Continuous batching wins at **every** concurrency; **19.8× over the naive HF floor at c=32**, where HF collapses on KV-cache-less recompute.
+<sub>*The naive HF floor at c=32 is VRAM-thrash-limited at the card's memory edge and **not reproducible** (measured 8.9–27.7 tok/s across repeats), which is why the ours-vs-HF ratio is reported as a range. The ours-vs-vLLM ceiling ratio is stable (±1.3%). See the Reproducibility section of [`bench/report.md`](bench/report.md).</sub>
+
+- Continuous batching wins at **every** concurrency and lands **within ~4.6× of the vLLM ceiling at c=32** (450 vs 2,079 tok/s, reproducible ±1.3%). Against the naive HF floor it is **~16–50× at c=32** — reported as a *range* because the floor is VRAM-thrash-limited and non-reproducible there (KV-cache-less recompute at the card's memory edge).
 
 | Experiment | Result | Notes |
 |------------|--------|-------|
@@ -284,7 +287,7 @@ Every figure below regenerates with `uv run python bench/run_all.py --plots`; pl
 | Paged KV equivalence | max\|Δlogit\| = 0 on model-level compute gate | Reference path; no Triton kernel yet |
 | 27B FP8 hero | Fine-tuned 27B fits at **28.9 GiB** (peak 32.1/32.6 GiB on-card); **0.121 tok/s** | Capacity proof — FP8 halves weight bytes so the 27B fits the 5090; not a latency win |
 
-**Honest gaps:** no persistent paged runtime cache; no batched speculative decoding; the 27B FP8 hero is a capacity/coherence proof, not a usable latency point; vLLM ceiling deferred on sm_120 (subprocess failed on Blackwell — reported, not faked).
+**Honest gaps:** no persistent paged runtime cache; no batched speculative decoding; the 27B FP8 hero is a capacity/coherence proof, not a usable latency point; the naive-HF floor at c=32 is VRAM-thrash-limited and non-reproducible, so the ours-vs-HF ratio is reported as a range (the vLLM-ceiling ratio is the stable number); the vLLM ceiling runs with its native Torch sampler (`VLLM_USE_FLASHINFER_SAMPLER=0`) because FlashInfer's sampler JIT is incompatible with the cu13 headers on sm_120 — attention and CUDA graphs are unchanged (see `DECISIONS.md`).
 
 ---
 
@@ -359,7 +362,7 @@ Priority order (as decided with the maintainer — MLX reach first, then engine-
 3. **Full-attention target, spec-decode net-positive** — the highest-leverage single experiment: the ~0.6–0.7× wall-clock was the *hybrid linear-attention replay tax*, not the method, so a croppable-KV target should flip it net-positive. → `plans/future/14`
 4. **Triton paged-attention kernel** — replace the reference Python path with a fused kernel (needs #2). → `plans/future/15`
 5. **Batched speculative decoding** — extend accept/replay through the continuous-batching scheduler; measured honestly (may stay net-negative on hybrid). → `plans/future/16`
-6. **vLLM ceiling on Blackwell** — re-run when sm_120 wheels are available. → `plans/future/17`
+6. **vLLM ceiling on Blackwell** — ✅ done: vLLM 0.23.0 runs on sm_120 (isolated `bench/.venv-vllm`); ours is within ~4.6× at c=32. → `plans/future/17`
 
 Backlog (not yet scoped into phase files, in `plans/future/00`): MoE (35B-A3B) native multi-token prediction as a self-speculation baseline, prefix-sharing via copy-on-write KV blocks, DPO/GRPO post-training, chunked prefill + quantized KV-cache, per-request sampling, and a streaming/sharded 27B merge.
 

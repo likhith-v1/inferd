@@ -183,6 +183,11 @@ class BenchResult:
     single_stream: list[SingleStreamResult] = field(default_factory=list)
     concurrency_sweep: list[ConcurrencySweepPoint] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)
+    # Phase-17 comparison metadata. Defaults keep historical result JSON and
+    # constructors source-compatible while allowing a three-rung run to be
+    # selected as one atomic, provenance-checked cohort.
+    cohort_id: str | None = None
+    provenance: dict = field(default_factory=dict)
 
 
 def write_result_json(

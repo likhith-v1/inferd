@@ -1,0 +1,74 @@
+{
+  "engine": "batched",
+  "role": "phase06_scheduler",
+  "model": "/home/likhithv/projects/inferd/weights/Qwen3.5-9B",
+  "profile": "greedy",
+  "max_tokens": 96,
+  "env": {
+    "timestamp": "2026-07-17T16:41:54Z",
+    "seed": 0,
+    "workload_hash": "ebc121d5f9503eff",
+    "python": "3.13.14 (main, Jun 23 2026, 15:18:27) [Clang 22.1.3 ]",
+    "platform": "Linux-6.18.33.2-microsoft-standard-WSL2-x86_64-with-glibc2.43",
+    "torch": "2.11.0+cu130",
+    "cuda_available": true,
+    "gpu_name": "NVIDIA GeForce RTX 5090",
+    "gpu_capability": [
+      12,
+      0
+    ],
+    "cuda_version": "13.0",
+    "transformers": "5.3.0",
+    "driver_version": "610.74",
+    "vram_total_mb": "32607 MiB",
+    "git_commit": "93b6d41"
+  },
+  "single_stream": [],
+  "concurrency_sweep": [
+    {
+      "concurrency": 32,
+      "total_time_s": 6.828358156999457,
+      "total_tokens": 3072,
+      "throughput_tok_s": 449.888528013286,
+      "peak_vram_mb": 23682.0,
+      "peak_vram_torch_mb": 22503.2548828125,
+      "warmup_runs": 3
+    }
+  ],
+  "notes": [
+    "FCFS continuous batching with one batched decode forward per iteration.",
+    "Batched decode equivalence is covered by bench.batched_equiv.",
+    "Fixed pool of 32 requests at each batch width.",
+    "Paged blocks are admission accounting; runtime KV still uses HF caches.",
+    "Batched speculative decoding is not implemented."
+  ],
+  "cohort_id": "4cc2a02e4b534c5bbe9e47ae6ee71309",
+  "provenance": {
+    "model_fingerprint": "720aca733f5e43ac",
+    "workload_hash": "ebc121d5f9503eff",
+    "profile": "greedy",
+    "seed": 0,
+    "max_tokens": 96,
+    "warmup_runs": 3,
+    "concurrency_grid": [
+      32
+    ]
+  },
+  "scheduler_points": [
+    {
+      "concurrency": 32,
+      "continuous_tok_s": 449.888528013286,
+      "waiting_sequences": 0,
+      "active_sequences": 0,
+      "completed_sequences": 32,
+      "failed_sequences": 0,
+      "admitted_sequences": 32,
+      "evicted_sequences": 32,
+      "iterations": 96,
+      "total_generated_tokens": 3072,
+      "used_blocks": 0,
+      "free_blocks": 384,
+      "max_blocks_used": 271
+    }
+  ]
+}

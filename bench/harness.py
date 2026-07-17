@@ -185,7 +185,7 @@ def main(argv: list[str] | None = None) -> int:
             seed=args.seed,
             max_tokens=args.max_tokens,
             concurrency_grid=concurrency_grid,
-            warmup_runs=1,
+            warmup_runs=args.warmup_runs,
             profile_name=args.profile,
             results_dir=args.results_dir,
         )

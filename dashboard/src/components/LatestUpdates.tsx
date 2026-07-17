@@ -78,14 +78,14 @@ export default function LatestUpdates({
     });
   }
 
-  const headline = benchmarks.throughput.headline;
-  if (headline.speedup) {
+  const ceiling = benchmarks.throughput.ceiling;
+  if (ceiling?.ratio) {
     updates.push({
       key: "benchmark",
       icon: BarChart3,
       tone: "neutral",
       title: "Benchmark refreshed",
-      detail: `${fixed(headline.speedup, 1)}× over naive HF at c=${headline.concurrency}`
+      detail: `within ${fixed(ceiling.ratio, 1)}× of vLLM at c=${ceiling.concurrency}`
     });
   }
 

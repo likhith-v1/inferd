@@ -1,0 +1,132 @@
+{
+  "engine": "vllm",
+  "role": "ceiling",
+  "model": "/home/likhithv/projects/inferd/weights/Qwen3.5-9B",
+  "profile": "greedy",
+  "max_tokens": 96,
+  "env": {
+    "timestamp": "2026-07-17T16:42:22Z",
+    "seed": 0,
+    "workload_hash": "ebc121d5f9503eff",
+    "python": "3.13.14 (main, Jun 23 2026, 15:18:27) [Clang 22.1.3 ]",
+    "platform": "Linux-6.18.33.2-microsoft-standard-WSL2-x86_64-with-glibc2.43",
+    "torch": "2.11.0",
+    "cuda_available": true,
+    "gpu_name": "NVIDIA GeForce RTX 5090",
+    "gpu_capability": [
+      12,
+      0
+    ],
+    "cuda_version": "13.0",
+    "transformers": "5.3.0",
+    "driver_version": "610.74",
+    "vram_total_mb": 32607.0,
+    "git_commit": "93b6d41",
+    "isolated_validation": {
+      "cuda_available": true,
+      "gpu_capability": [
+        12,
+        0
+      ],
+      "gpu_name": "NVIDIA GeForce RTX 5090",
+      "python_minor": [
+        3,
+        13
+      ],
+      "python_version": "3.13.14 (main, Jun 23 2026, 15:18:27) [Clang 22.1.3 ]",
+      "torch_cuda_version": "13.0",
+      "torch_version": "2.11.0",
+      "vllm_version": "0.23.0"
+    },
+    "vllm": "0.23.0",
+    "effective_config": {
+      "dtype": "bfloat16",
+      "language_model_only": true,
+      "gpu_memory_utilization": 0.9,
+      "enforce_eager": false,
+      "flashinfer_sampler": false,
+      "temperature": 0.0,
+      "top_p": 1.0,
+      "seed": 0,
+      "max_tokens": 96
+    }
+  },
+  "single_stream": [],
+  "concurrency_sweep": [
+    {
+      "concurrency": 1,
+      "total_time_s": 1.1230257400020491,
+      "total_tokens": 96,
+      "throughput_tok_s": 85.48334787039238,
+      "peak_vram_mb": 31828.0,
+      "peak_vram_torch_mb": 0.0,
+      "warmup_runs": 3
+    },
+    {
+      "concurrency": 2,
+      "total_time_s": 1.2590399790024094,
+      "total_tokens": 192,
+      "throughput_tok_s": 152.49714322187745,
+      "peak_vram_mb": 31828.0,
+      "peak_vram_torch_mb": 0.0,
+      "warmup_runs": 3
+    },
+    {
+      "concurrency": 4,
+      "total_time_s": 1.2475174159990274,
+      "total_tokens": 384,
+      "throughput_tok_s": 307.8113339944742,
+      "peak_vram_mb": 31828.0,
+      "peak_vram_torch_mb": 0.0,
+      "warmup_runs": 3
+    },
+    {
+      "concurrency": 8,
+      "total_time_s": 1.2163792440005636,
+      "total_tokens": 768,
+      "throughput_tok_s": 631.3820330196658,
+      "peak_vram_mb": 31832.0,
+      "peak_vram_torch_mb": 0.0,
+      "warmup_runs": 3
+    },
+    {
+      "concurrency": 16,
+      "total_time_s": 1.2990170230004878,
+      "total_tokens": 1530,
+      "throughput_tok_s": 1177.8136644167946,
+      "peak_vram_mb": 31832.0,
+      "peak_vram_torch_mb": 0.0,
+      "warmup_runs": 3
+    },
+    {
+      "concurrency": 32,
+      "total_time_s": 1.4689099349998287,
+      "total_tokens": 3054,
+      "throughput_tok_s": 2079.0927525453467,
+      "peak_vram_mb": 31832.0,
+      "peak_vram_torch_mb": 0.0,
+      "warmup_runs": 3
+    }
+  ],
+  "notes": [
+    "vLLM pre-allocates KV at gpu_memory_utilization=0.9; peak_vram_mb ~= 90% of card by design \u2014 do not compare naively.",
+    "VLLM_USE_FLASHINFER_SAMPLER=0: native Torch sampler (the FlashInfer sampler JIT is incompatible with the cu13 headers on sm_120). Greedy is argmax regardless; attention (FlashAttention-2) and CUDA graphs are unchanged."
+  ],
+  "cohort_id": "4cc2a02e4b534c5bbe9e47ae6ee71309",
+  "provenance": {
+    "workload_hash": "ebc121d5f9503eff",
+    "profile": "greedy",
+    "seed": 0,
+    "max_tokens": 96,
+    "warmup_runs": 3,
+    "concurrency_grid": [
+      1,
+      2,
+      4,
+      8,
+      16,
+      32
+    ],
+    "model_fingerprint": "720aca733f5e43ac"
+  }
+}

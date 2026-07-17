@@ -2,6 +2,11 @@ import { execFileSync } from "node:child_process";
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  latestDeferredVllm,
+  selectLegacyTwoRung,
+  selectPhase17Cohort
+} from "./snapshot-selection.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const dashboardRoot = path.resolve(here, "..");
@@ -109,11 +114,12 @@ function specRows(stock, distilled) {
 }
 
 const results = allResults();
-const hf = latest(results, (r) => r.engine === "hf" && r.profile === "greedy")
-  ?? latest(results, (r) => r.engine === "hf");
-const ours = latest(results, (r) => r.engine === "batched" && r.role === "phase06_scheduler_matched")
-  ?? latest(results, (r) => r.engine === "batched" && (r.concurrency_sweep?.length ?? 0) > 1);
-const vllm = latest(results, (r) => r.engine === "vllm");
+const phase17 = selectPhase17Cohort(results);
+const legacy = phase17 ? null : selectLegacyTwoRung(results);
+const hf = phase17?.hf ?? legacy?.hf;
+const ours = phase17?.ours ?? legacy?.ours;
+const vllm = phase17?.vllm ?? null;
+const deferredVllm = latestDeferredVllm(results);
 const stock = latest(results, (r) => r.engine === "spec" && r.draft_label === "stock");
 const distilled = latest(results, (r) => r.engine === "spec" && r.draft_label === "distilled");
 const paged = latest(results, (r) => r.engine === "paged");
@@ -129,6 +135,31 @@ const highestShared = [...throughput]
   .filter((row) => row.naiveHf && row.ours)
   .sort((a, b) => b.concurrency - a.concurrency)[0];
 const ratio = highestShared ? highestShared.ours / highestShared.naiveHf : null;
+
+// The stable, reproducible headline: ours vs the vLLM ceiling at the highest
+// shared concurrency (both engines are KV-cached/paged). Preferred over the
+// ours-vs-HF ratio, whose denominator (the naive HF floor at c=32) thrashes at
+// the card's VRAM edge and is not reproducible — see phase17_variance.json.
+const ceilingRow = [...throughput]
+  .filter((row) => row.ours && row.vllm)
+  .sort((a, b) => b.concurrency - a.concurrency)[0];
+const ceiling = ceilingRow
+  ? {
+      concurrency: ceilingRow.concurrency,
+      oursTokS: round(ceilingRow.ours, 1),
+      vllmTokS: round(ceilingRow.vllm, 1),
+      ratio: round(ceilingRow.vllm / ceilingRow.ours, 2)
+    }
+  : null;
+let variance = null;
+try {
+  variance = readJson(path.join(resultsRoot, "phase17_variance.json"));
+} catch {
+  variance = null;
+}
+const oursVsHfRange = variance?.ours_vs_hf_c32_range
+  ? { low: variance.ours_vs_hf_c32_range.low, high: variance.ours_vs_hf_c32_range.high }
+  : null;
 const rows = specRows(stock, distilled);
 const alphaLifts = rows
   .filter((row) => row.stockAlpha !== undefined && row.distilledAlpha !== undefined)
@@ -154,7 +185,11 @@ try {
 let reportHeadline = "";
 try {
   const report = readFileSync(reportPath, "utf8");
-  reportHeadline = report.match(/\*\*19\.80[x×][^*]*\*\*/)?.[0] ?? "";
+  // Prefer the stable Phase-17 ceiling headline; fall back to any bolded speedup.
+  reportHeadline =
+    report.match(/within \*\*[\d.]+[x×]\*\* of the production engine/)?.[0] ??
+    report.match(/\*\*[\d.]+[x×][^*]*\*\*/)?.[0] ??
+    "";
 } catch {
   reportHeadline = "";
 }
@@ -171,11 +206,25 @@ const snapshot = {
     hf: hf.dir,
     ours: ours.dir,
     vllm: vllm?.dir ?? null,
+    vllmDeferred: deferredVllm?.dir ?? null,
     stockSpec: stock.dir,
     distilledSpec: distilled.dir,
     paged: paged?.dir ?? null,
     fp8Hero: fp8?.dir ?? null
   },
+  cohort: phase17
+    ? {
+        id: phase17.cohortId,
+        status: "complete",
+        modelFingerprint: phase17.provenance.model_fingerprint,
+        workloadHash: phase17.provenance.workload_hash
+      }
+    : {
+        id: null,
+        status: "pending",
+        modelFingerprint: null,
+        workloadHash: null
+      },
   environment: {
     gpuName: env.gpu_name ?? "NVIDIA GeForce RTX 5090",
     cudaVersion: env.cuda_version ?? null,
@@ -193,9 +242,11 @@ const snapshot = {
       oursTokS: round(highestShared?.ours, 1),
       speedup: round(ratio, 2)
     },
-    vllmStatus: vllm?.data?.role === "ceiling_deferred"
-      ? (vllm.data.notes?.[0] ?? "vLLM ceiling deferred")
-      : "available"
+    ceiling,
+    oursVsHfRange,
+    vllmStatus: phase17
+      ? `available — validated cohort ${phase17.cohortId}`
+      : "pending — no complete validated Phase 17 cohort"
   },
   vram: {
     rows: vram,

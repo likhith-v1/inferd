@@ -1,0 +1,12 @@
+[project]
+name = "inferd-vllm-ceiling"
+version = "0.0.0"
+description = "Pinned, isolated environment for the vLLM Blackwell ceiling benchmark."
+requires-python = ">=3.13,<3.14"
+dependencies = [
+    "torch==2.11.0",
+    "vllm==0.23.0",
+]
+
+[tool.uv]
+package = false

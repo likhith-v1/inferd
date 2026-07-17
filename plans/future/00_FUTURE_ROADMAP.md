@@ -38,11 +38,11 @@ is explicit, not accidental.
 14 full-attention spec-decode      (flips the biggest honest caveat net-positive)
 15 Triton paged-attention kernel   (the deferred kernel credential; needs 13)
 16 batched speculative decoding    (completeness; may stay net-neg on hybrid)
-17 vLLM ceiling on Blackwell       (closes "within K× of vLLM"; blocked upstream)
+17 vLLM ceiling on Blackwell       (DONE 2026-07-17: within ~4.6× at c=32 on sm_120)
 ```
 12 shares no v1 files, so it runs fully parallel to 13–17. 14 depends on nothing
 structural (the crop-vs-replay branch already exists in `core/spec_decode.py`).
-15 depends on 13 to matter in the live path. 17 is gated on upstream sm_120 wheels.
+15 depends on 13 to matter in the live path. 17 is done (vLLM 0.23.0 runs on sm_120).
 
 ## Hard-constraint delta from v1 (read before phase 12)
 v1's global constraints (`plans/shipped/00_MASTER_ORCHESTRATION.md`) include

@@ -18,8 +18,9 @@ capture script so the recording is reproducible and the numbers on screen match
 3. **Ramp concurrency.** Fire 1 → 4 → 8 → 16 → 32 concurrent requests from the
    dashboard load buttons or a small local script against `/generate`; the live
    tokens/sec sparkline and active sequence counts move while the benchmark curve
-   shows the naive HF reference collapsing past c=8. This is the **19.8× at c=32**
-   headline as the benchmark overlay, with live engine activity beside it.
+   shows the naive HF reference collapsing past c=8. The benchmark overlay now
+   shows all three rungs — naive HF, inferd, and the vLLM ceiling — with the
+   headline **within ~4.6× of vLLM at c=32**, live engine activity beside it.
 4. **Acceptance rate.** Toggle speculative decoding on; α settles ≈0.63–0.68; show
    the honest caveat that net throughput is 0.6–0.7× (correctness + α-lift are the
    wins, not raw speed).

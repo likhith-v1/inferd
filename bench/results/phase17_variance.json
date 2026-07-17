@@ -1,0 +1,44 @@
+{
+  "note": "Phase-17 reproducibility repeat at c=1 and c=32 (gate 4). ours and vLLM are KV-cached/paged and reproduce within ~2%. The naive-HF floor at c=32 is VRAM-thrash-limited at the 32GB card edge and is NOT reproducible, so the ours-vs-HF ratio at c=32 is reported as a range.",
+  "generated": "2026-07-17T16:56:45Z",
+  "main_cohort_id": "4cc2a02e4b534c5bbe9e47ae6ee71309",
+  "repeat_cohort_id": "58111f09ec134de5b02815631c66e2dc",
+  "rows": [
+    {
+      "rung": "hf",
+      "c1_main": 29.5,
+      "c1_repeat": 28.9,
+      "c1_delta_pct": -2.0,
+      "c32_main": 8.9,
+      "c32_repeat": 27.7,
+      "c32_delta_pct": 211.5
+    },
+    {
+      "rung": "ours",
+      "c1_main": 44.1,
+      "c1_repeat": 43.6,
+      "c1_delta_pct": -1.2,
+      "c32_main": 449.9,
+      "c32_repeat": 457.3,
+      "c32_delta_pct": 1.6
+    },
+    {
+      "rung": "vllm",
+      "c1_main": 85.5,
+      "c1_repeat": 86.5,
+      "c1_delta_pct": 1.1,
+      "c32_main": 2079.1,
+      "c32_repeat": 2084.4,
+      "c32_delta_pct": 0.3
+    }
+  ],
+  "ceiling_ratio_c32": {
+    "main": 4.62,
+    "repeat": 4.56,
+    "delta_pct": -1.4
+  },
+  "ours_vs_hf_c32_range": {
+    "low": 16.5,
+    "high": 50.5
+  }
+}

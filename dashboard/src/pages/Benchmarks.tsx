@@ -9,6 +9,17 @@ import { fixed, mibToGib, rate } from "../lib/format";
 export default function Benchmarks() {
   const { benchmarks } = useDashboard();
   const headline = benchmarks.throughput.headline;
+  const ceiling = benchmarks.throughput.ceiling;
+  const range = benchmarks.throughput.oursVsHfRange;
+
+  // Lead with the stable, reproducible ceiling ratio. The ours-vs-HF ratio is
+  // shown as a range because the naive HF floor at high concurrency is not
+  // reproducible (thrashes at the VRAM edge) — see the report's Reproducibility.
+  const rangeLabel = range
+    ? `~${fixed(range.low, 0)}–${fixed(range.high, 0)}x`
+    : headline.speedup
+      ? `${fixed(headline.speedup, 1)}x`
+      : "—";
 
   return (
     <div className="page-stack">
@@ -17,9 +28,13 @@ export default function Benchmarks() {
         <p className="page-subtitle">inferd against the naive HF floor and the vLLM ceiling — snapshot from bench/report.md.</p>
       </div>
       <div className="kpi-grid">
-        <KpiCard title="Headline speedup" value={`${fixed(headline.speedup, 2)}x`} detail={`c=${headline.concurrency} vs naive HF`} source="benchmark" icon={Trophy} />
-        <KpiCard title="inferd c=32" value={rate(headline.oursTokS, 1)} detail="continuous batching" source="benchmark" icon={Activity} />
-        <KpiCard title="Naive HF c=32" value={rate(headline.naiveHfTokS, 1)} detail="floor baseline" source="benchmark" icon={Gauge} />
+        {ceiling ? (
+          <KpiCard title="Within Nx of vLLM" value={`${fixed(ceiling.ratio, 2)}x`} detail={`c=${ceiling.concurrency} ceiling · reproducible`} source="benchmark" icon={Trophy} />
+        ) : (
+          <KpiCard title="Headline speedup" value={`${fixed(headline.speedup, 2)}x`} detail={`c=${headline.concurrency} vs naive HF`} source="benchmark" icon={Trophy} />
+        )}
+        <KpiCard title="inferd c=32" value={rate(ceiling?.oursTokS ?? headline.oursTokS, 1)} detail="continuous batching" source="benchmark" icon={Activity} />
+        <KpiCard title="vLLM ceiling c=32" value={rate(ceiling?.vllmTokS ?? null, 1)} detail="reference engine" source="benchmark" icon={Gauge} />
         <KpiCard title="VRAM total" value={mibToGib(benchmarks.environment.vramTotalMb, 1)} detail={benchmarks.environment.gpuName} source="benchmark" icon={Cpu} />
       </div>
 
@@ -40,6 +55,8 @@ export default function Benchmarks() {
           <dl className="fact-list">
             <div><dt>snapshot commit</dt><dd>{benchmarks.sourceCommit}</dd></div>
             <div><dt>benchmark commit</dt><dd>{benchmarks.benchmarkCommit}</dd></div>
+            <div><dt>cohort</dt><dd>{benchmarks.cohort.id ?? benchmarks.cohort.status}</dd></div>
+            <div><dt>ours vs naive HF (c=32)</dt><dd>{rangeLabel} · floor VRAM-thrash noisy</dd></div>
             <div><dt>generated</dt><dd>{new Date(benchmarks.generatedAt).toLocaleString()}</dd></div>
             <div><dt>vLLM</dt><dd>{benchmarks.throughput.vllmStatus}</dd></div>
           </dl>
