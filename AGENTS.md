@@ -1,6 +1,6 @@
 # AGENTS.md — `inferd`
 
-A from-scratch local LLM inference stack: **QLoRA fine-tune → speculative decoding → paged KV-cache → continuous batching**, served via FastAPI + a React dashboard, benchmarked against naive HF and vLLM. Runs fully local on a single RTX 5090. See `plan.md` for the vision, `plans/shipped/` for the v1 execution pack (one file per phase, `00`–`11`, shipped as `v0.1.0`), and `plans/future/` for the not-yet-committed post-`v0.1.0` roadmap (`00` index + phases `12`+).
+A from-scratch local LLM inference stack: **QLoRA fine-tune → speculative decoding → paged KV-cache → continuous batching**, served via FastAPI + a React dashboard, benchmarked against naive HF and vLLM. Runs fully local on a single RTX 5090. See `plan.md` for the vision, `plans/shipped/` for completed phase plans (the v1 execution pack `00`–`11` plus Phase `17`), and `plans/future/` for the not-yet-committed post-`v0.1.0` roadmap (`00` index + unfinished phases `12`–`16`).
 
 ## Current state (2026-07-17)
 **All phases 01–11 are code-complete; shipped as `v0.1.0`, patched to `v0.1.1`, and `v0.1.5` is staged (not yet tagged).** The React dashboard (08) is built (`dashboard/`, Vite + React + TS, five pages) and passes `bun run build` (tsc + Vite) and `bun run lint`. The under-load demo video (`docs/assets/demo.mp4`) was intentionally waived and is the one deferred nice-to-have.

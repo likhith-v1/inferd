@@ -8,8 +8,9 @@ Preferred model: Claude Opus 4.8 | Effort: high
 > directions, each tied to a real gap or measured finding from `DECISIONS.md`.
 
 This file is the source of truth for cross-phase coordination of the future work,
-the same role `plans/shipped/00_MASTER_ORCHESTRATION.md` plays for v1. Future
-phase files (12+) stay lean and defer their shared rules here.
+the same role `plans/shipped/00_MASTER_ORCHESTRATION.md` plays for v1. Unfinished
+phase files (12–16) stay lean and defer their shared rules here; completed Phase 17
+now lives in `plans/shipped/17_VLLM_CEILING_BLACKWELL.md`.
 
 ## Where v1 left off (the two facts everything hangs on)
 - **Spec-decode's net-negative wall-clock is architectural, not a bug.** Qwen3.5

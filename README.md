@@ -362,7 +362,7 @@ Priority order (as decided with the maintainer — MLX reach first, then engine-
 3. **Full-attention target, spec-decode net-positive** — the highest-leverage single experiment: the ~0.6–0.7× wall-clock was the *hybrid linear-attention replay tax*, not the method, so a croppable-KV target should flip it net-positive. → `plans/future/14`
 4. **Triton paged-attention kernel** — replace the reference Python path with a fused kernel (needs #2). → `plans/future/15`
 5. **Batched speculative decoding** — extend accept/replay through the continuous-batching scheduler; measured honestly (may stay net-negative on hybrid). → `plans/future/16`
-6. **vLLM ceiling on Blackwell** — ✅ done: vLLM 0.23.0 runs on sm_120 (isolated `bench/.venv-vllm`); ours is within ~4.6× at c=32. → `plans/future/17`
+6. **vLLM ceiling on Blackwell** — ✅ done: vLLM 0.23.0 runs on sm_120 (isolated `bench/.venv-vllm`); ours is within ~4.6× at c=32. → `plans/shipped/17`
 
 Backlog (not yet scoped into phase files, in `plans/future/00`): MoE (35B-A3B) native multi-token prediction as a self-speculation baseline, prefix-sharing via copy-on-write KV blocks, DPO/GRPO post-training, chunked prefill + quantized KV-cache, per-request sampling, and a streaming/sharded 27B merge.
 
