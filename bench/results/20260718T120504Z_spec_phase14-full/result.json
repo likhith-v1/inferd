@@ -1,0 +1,265 @@
+{
+  "engine": "spec",
+  "target": "weights/Qwen3-8B",
+  "draft": "weights/Qwen3-0.6B",
+  "draft_label": "stock",
+  "draft_adapter": null,
+  "phase": 14,
+  "pair_config": "phase14-full",
+  "profile": "canonical",
+  "max_tokens": 128,
+  "baseline_tok_s": 44.58,
+  "sweep": [
+    {
+      "gamma": 2,
+      "alpha": 0.5568,
+      "wall_time_s": 67.876683,
+      "throughput_tok_s": 22.63,
+      "speedup_vs_baseline": 0.508,
+      "speedup_repeat_range": [
+        0.507,
+        0.51
+      ],
+      "net_result": "negative",
+      "theory_tokens_per_round": 1.867,
+      "rounds": 730,
+      "accepted": 813,
+      "proposed": 1460,
+      "tokens": 1536
+    },
+    {
+      "gamma": 4,
+      "alpha": 0.4239,
+      "wall_time_s": 71.202649,
+      "throughput_tok_s": 21.57,
+      "speedup_vs_baseline": 0.486,
+      "speedup_repeat_range": [
+        0.483,
+        0.505
+      ],
+      "net_result": "negative",
+      "theory_tokens_per_round": 1.712,
+      "rounds": 578,
+      "accepted": 980,
+      "proposed": 2312,
+      "tokens": 1536
+    },
+    {
+      "gamma": 8,
+      "alpha": 0.2596,
+      "wall_time_s": 92.961743,
+      "throughput_tok_s": 16.52,
+      "speedup_vs_baseline": 0.371,
+      "speedup_repeat_range": [
+        0.369,
+        0.387
+      ],
+      "net_result": "negative",
+      "theory_tokens_per_round": 1.351,
+      "rounds": 509,
+      "accepted": 1057,
+      "proposed": 4072,
+      "tokens": 1536
+    }
+  ],
+  "repeats": [
+    {
+      "repeat": 1,
+      "gamma_order": [
+        2,
+        4,
+        8
+      ],
+      "baseline": {
+        "wall_time_s": 36.01271660200109,
+        "tokens": 1536,
+        "throughput_tok_s": 42.6516004603399
+      },
+      "sweep": [
+        {
+          "gamma": 2,
+          "wall_time_s": 70.63566098000047,
+          "tokens": 1536,
+          "throughput_tok_s": 21.74539005779103,
+          "alpha": 0.5568493150684931,
+          "accepted": 813,
+          "proposed": 1460,
+          "rounds": 730,
+          "speedup_vs_baseline": 0.5098376103848962,
+          "theory_tokens_per_round": 1.866930474760743
+        },
+        {
+          "gamma": 4,
+          "wall_time_s": 71.3001154020003,
+          "tokens": 1536,
+          "throughput_tok_s": 21.542742130777928,
+          "alpha": 0.42387543252595156,
+          "accepted": 980,
+          "proposed": 2312,
+          "rounds": 578,
+          "speedup_vs_baseline": 0.5050863718656866,
+          "theory_tokens_per_round": 1.7119851221096234
+        },
+        {
+          "gamma": 8,
+          "wall_time_s": 92.96174341499864,
+          "tokens": 1536,
+          "throughput_tok_s": 16.522925921720383,
+          "alpha": 0.2595776031434185,
+          "accepted": 1057,
+          "proposed": 4072,
+          "rounds": 509,
+          "speedup_vs_baseline": 0.38739287021795166,
+          "theory_tokens_per_round": 1.3505732047205818
+        }
+      ]
+    },
+    {
+      "repeat": 2,
+      "gamma_order": [
+        4,
+        8,
+        2
+      ],
+      "baseline": {
+        "wall_time_s": 34.393802749000315,
+        "tokens": 1536,
+        "throughput_tok_s": 44.65920826520543
+      },
+      "sweep": [
+        {
+          "gamma": 4,
+          "wall_time_s": 71.20264914200015,
+          "tokens": 1536,
+          "throughput_tok_s": 21.572231068773014,
+          "alpha": 0.42387543252595156,
+          "accepted": 980,
+          "proposed": 2312,
+          "rounds": 578,
+          "speedup_vs_baseline": 0.48304105484064797,
+          "theory_tokens_per_round": 1.7119851221096234
+        },
+        {
+          "gamma": 8,
+          "wall_time_s": 93.27263957499963,
+          "tokens": 1536,
+          "throughput_tok_s": 16.46785174086252,
+          "alpha": 0.2595776031434185,
+          "accepted": 1057,
+          "proposed": 4072,
+          "rounds": 509,
+          "speedup_vs_baseline": 0.36874482062174935,
+          "theory_tokens_per_round": 1.3505732047205818
+        },
+        {
+          "gamma": 2,
+          "wall_time_s": 67.87668332900103,
+          "tokens": 1536,
+          "throughput_tok_s": 22.629273038503456,
+          "alpha": 0.5568493150684931,
+          "accepted": 813,
+          "proposed": 1460,
+          "rounds": 730,
+          "speedup_vs_baseline": 0.5067101258070045,
+          "theory_tokens_per_round": 1.866930474760743
+        }
+      ]
+    },
+    {
+      "repeat": 3,
+      "gamma_order": [
+        8,
+        2,
+        4
+      ],
+      "baseline": {
+        "wall_time_s": 34.453265240999826,
+        "tokens": 1536,
+        "throughput_tok_s": 44.58213145418044
+      },
+      "sweep": [
+        {
+          "gamma": 8,
+          "wall_time_s": 92.81648813399988,
+          "tokens": 1536,
+          "throughput_tok_s": 16.548783851662918,
+          "alpha": 0.2595776031434185,
+          "accepted": 1057,
+          "proposed": 4072,
+          "rounds": 509,
+          "speedup_vs_baseline": 0.37119768193835756,
+          "theory_tokens_per_round": 1.3505732047205818
+        },
+        {
+          "gamma": 2,
+          "wall_time_s": 67.86850194900035,
+          "tokens": 1536,
+          "throughput_tok_s": 22.63200094138256,
+          "alpha": 0.5568493150684931,
+          "accepted": 813,
+          "proposed": 1460,
+          "rounds": 730,
+          "speedup_vs_baseline": 0.5076473511510489,
+          "theory_tokens_per_round": 1.866930474760743
+        },
+        {
+          "gamma": 4,
+          "wall_time_s": 70.91549824699905,
+          "tokens": 1536,
+          "throughput_tok_s": 21.659581304076916,
+          "alpha": 0.42387543252595156,
+          "accepted": 980,
+          "proposed": 2312,
+          "rounds": 578,
+          "speedup_vs_baseline": 0.4858354815614342,
+          "theory_tokens_per_round": 1.7119851221096234
+        }
+      ]
+    }
+  ],
+  "repeat_range": [
+    1,
+    3
+  ],
+  "warmup_runs_per_mode": 1,
+  "target_fingerprint": "ef67b992b801a094",
+  "draft_fingerprint": "e1e4a8c403ef3404",
+  "tokenizer_sha256": "aeb13307a71acd8fe81861d94ad54ab689df773318809eed3cbe794b4492dae4",
+  "cache_reconciliation": "crop-no-replay",
+  "pair_provenance": {
+    "name": "phase14-full",
+    "target": "weights/Qwen3-8B",
+    "draft": "weights/Qwen3-0.6B",
+    "target_repo": "Qwen/Qwen3-8B",
+    "draft_repo": "Qwen/Qwen3-0.6B",
+    "target_revision": "b968826d9c46dd6066d109eabc6255188de91218",
+    "draft_revision": "c1899de289a04d12100db370d81485cdf75e47ca",
+    "tokenizer_sha256": "aeb13307a71acd8fe81861d94ad54ab689df773318809eed3cbe794b4492dae4",
+    "vocab_size": 151936,
+    "reconciliation": "crop-no-replay",
+    "phase12_candidate": true
+  },
+  "resolved_revisions": {
+    "target": "b968826d9c46dd6066d109eabc6255188de91218",
+    "draft": "c1899de289a04d12100db370d81485cdf75e47ca"
+  },
+  "env": {
+    "timestamp": "2026-07-18T12:05:04Z",
+    "seed": 0,
+    "workload_hash": "1ef349ee2c7709d2",
+    "python": "3.13.14 (main, Jun 23 2026, 15:18:27) [Clang 22.1.3 ]",
+    "platform": "Linux-6.18.33.2-microsoft-standard-WSL2-x86_64-with-glibc2.43",
+    "torch": "2.11.0+cu130",
+    "cuda_available": true,
+    "gpu_name": "NVIDIA GeForce RTX 5090",
+    "gpu_capability": [
+      12,
+      0
+    ],
+    "cuda_version": "13.0",
+    "transformers": "5.3.0",
+    "driver_version": "610.74",
+    "vram_total_mb": "32607 MiB",
+    "git_commit": "5f514d0"
+  }
+}

@@ -90,7 +90,15 @@ def latest_vllm():
 
 
 def latest_spec(label: str):
-    return _latest(lambda r: r.get("engine") == "spec" and r.get("draft_label") == label)
+    return _latest(lambda r: r.get("engine") == "spec"
+                   and r.get("phase", 4) != 14
+                   and r.get("draft_label") == label)
+
+
+def latest_phase14(pair_config: str):
+    return _latest(lambda r: r.get("engine") == "spec"
+                   and r.get("phase") == 14
+                   and r.get("pair_config") == pair_config)
 
 
 def _rung_name(result: dict) -> str | None:
@@ -426,6 +434,28 @@ def make_plots() -> list[str]:
         fig.tight_layout(); fig.savefig(p, dpi=130); plt.close(fig)
         made.append(p.name)
 
+    # 5. Phase 14 stays separate from the historical Phase 04 selectors.
+    full, hybrid = latest_phase14("phase14-full"), latest_phase14("phase14-hybrid")
+    if full and hybrid:
+        fig, ax = plt.subplots(figsize=(7, 4.5))
+        for result, label, style in [
+            (full, "Qwen3 full attention (crop-no-replay)", "o-"),
+            (hybrid, "Qwen3.5 hybrid (restore-and-replay)", "s--"),
+        ]:
+            sweep = sorted(result["sweep"], key=lambda row: row["gamma"])
+            ax.plot([row["gamma"] for row in sweep],
+                    [row["speedup_vs_baseline"] for row in sweep],
+                    style, label=label, linewidth=2, markersize=6)
+        ax.axhline(1.0, color="gray", ls=":", alpha=0.7)
+        ax.set_xlabel("gamma")
+        ax.set_ylabel("median paired speedup")
+        ax.set_title("Phase 14 — full-attention crop vs hybrid replay")
+        ax.grid(True, alpha=0.3)
+        ax.legend()
+        p = PLOTS / "phase14_full_vs_hybrid.png"
+        fig.tight_layout(); fig.savefig(p, dpi=130); plt.close(fig)
+        made.append(p.name)
+
     # 4. spec speedup vs gamma
     if stock or dist:
         fig, ax = plt.subplots(figsize=(7, 4.5))
@@ -537,6 +567,8 @@ def make_report() -> None:
     selected = select_three_rung_cohort()
     hf, ours, vllm = selected.hf, selected.ours, selected.vllm
     stock, dist = latest_spec("stock"), latest_spec("distilled")
+    phase14_full = latest_phase14("phase14-full")
+    phase14_hybrid = latest_phase14("phase14-hybrid")
     env = (ours or hf or {}).get("env", {})
 
     L: list[str] = []
@@ -553,6 +585,22 @@ def make_report() -> None:
         if k in env:
             L.append(f"| {k} | {env[k]} |")
     L.append("")
+
+    if phase14_full and phase14_hybrid:
+        L.append("## Phase 14 — full-attention crop versus hybrid replay\n")
+        L.append("![Phase 14 speedup](results/plots/phase14_full_vs_hybrid.png)\n")
+        L.append("| pair / reconciliation | gamma | alpha | wall (s) | median speedup | repeat range | result |")
+        L.append("|---|---|---|---|---|---|---|")
+        for result in (phase14_full, phase14_hybrid):
+            for row in sorted(result["sweep"], key=lambda item: item["gamma"]):
+                lo, hi = row["speedup_repeat_range"]
+                L.append(
+                    f"| {result['pair_config']} / {result['cache_reconciliation']} "
+                    f"| {row['gamma']} | {row['alpha']:.3f} | {row['wall_time_s']:.3f} "
+                    f"| {row['speedup_vs_baseline']:.3f}× | {lo:.3f}–{hi:.3f}× "
+                    f"| {row['net_result']} |"
+                )
+        L.append("")
 
     # --- throughput: three rungs ---
     L.append("## Throughput vs concurrency (three rungs)\n")

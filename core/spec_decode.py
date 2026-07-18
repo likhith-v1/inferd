@@ -35,28 +35,6 @@ def sample_from(probs: torch.Tensor) -> torch.Tensor:
     return torch.multinomial(probs, num_samples=1)
 
 
-def _clone_list(lst):
-    return [t.clone() if t is not None else None for t in lst]
-
-
-def _snapshot_linear(kv):
-    if kv is None:
-        return None
-    return (_clone_list(kv.conv_states), _clone_list(kv.recurrent_states))
-
-
-def _restore_to(kv, lin_snap, attn_len: int) -> None:
-    if kv is None:
-        return
-    conv, rec = lin_snap
-    kv.conv_states = _clone_list(conv)
-    kv.recurrent_states = _clone_list(rec)
-    for i in kv.transformer_layers:
-        if kv.key_cache[i] is not None and kv.key_cache[i].shape[-2] > attn_len:
-            kv.key_cache[i] = kv.key_cache[i][:, :, :attn_len, :].contiguous()
-            kv.value_cache[i] = kv.value_cache[i][:, :, :attn_len, :].contiguous()
-
-
 @dataclass
 class SpecStats:
     proposed: int = 0
@@ -93,10 +71,11 @@ def speculative_generate(
     """
     Generate up to `max_tokens` tokens via exact speculative decoding.
 
-    Linear-attention state can't be cropped, so each round snapshots conv/recurrent
-    state, runs parallel verify, then restores and replays committed tokens.
+    Cache rollback is delegated to each runner: dense models crop and forward one
+    token; Qwen3.5 restores linear state and replays all committed tokens.
     """
     device = target.device
+    target.validate_speculation_pair(draft)
     torch.manual_seed(seed)
     prompt_ids = prompt_ids.to(device)
 
@@ -116,9 +95,8 @@ def speculative_generate(
                           text=target.tokenizer.decode(gen_ids))
 
     while stats.generated < max_tokens:
-        base = len(committed)
-        t_snap = _snapshot_linear(target_kv)
-        d_snap = _snapshot_linear(draft_kv)
+        t_snap = target.checkpoint_speculation(target_kv)
+        d_snap = draft.checkpoint_speculation(draft_kv)
 
         q_last = q_anchor
         proposals: list[int] = []
@@ -161,11 +139,12 @@ def speculative_generate(
             stats.bonus_tokens += 1
         stats.accepted += n_accepted
 
-        _restore_to(target_kv, t_snap, base)
-        _restore_to(draft_kv, d_snap, base)
-        emit_t = torch.tensor([emitted], device=device)
-        t_logits, target_kv = target.forward(emit_t, target_kv)
-        d_logits, draft_kv = draft.forward(emit_t, draft_kv)
+        t_logits, target_kv = target.reconcile_speculation(
+            target_kv, t_snap, n_accepted, emitted
+        )
+        d_logits, draft_kv = draft.reconcile_speculation(
+            draft_kv, d_snap, n_accepted, emitted
+        )
         p_anchor = t_logits[:, -1, :]
         q_anchor = d_logits[:, -1, :]
 

@@ -11,7 +11,12 @@ if str(_project_root) not in sys.path:
 import inferd.env  # noqa: F401
 
 import torch  # noqa: E402
-from transformers import AutoModelForMultimodalLM, AutoTokenizer  # noqa: E402
+from transformers import (  # noqa: E402
+    AutoConfig,
+    AutoModelForCausalLM,
+    AutoModelForMultimodalLM,
+    AutoTokenizer,
+)
 
 _VISION_ATTRS = (
     "visual",
@@ -78,9 +83,17 @@ def load(
     if quantize not in (None, "fp8", "fp8-dynamic"):
         raise ValueError(f"unsupported quantize={quantize!r} (use 'fp8' or 'fp8-dynamic')")
 
+    config = AutoConfig.from_pretrained(str(weights_dir))
+    if config.model_type == "qwen3_5":
+        model_cls = AutoModelForMultimodalLM
+    elif config.model_type == "qwen3":
+        model_cls = AutoModelForCausalLM
+    else:
+        raise ValueError(f"unsupported model_type={config.model_type!r}; expected qwen3 or qwen3_5")
+
     tokenizer = AutoTokenizer.from_pretrained(str(weights_dir))
     quantization_config = _torchao_quant_config(quantize) if quantize else None
-    model = AutoModelForMultimodalLM.from_pretrained(
+    model = model_cls.from_pretrained(
         str(weights_dir),
         dtype=dtype,
         device_map=device,
@@ -103,7 +116,11 @@ def load(
             model = _peft_inner_model(model)
     model.eval()
 
-    if hasattr(model, "model") and hasattr(model.model, "language_model"):
+    if config.model_type == "qwen3":
+        if not hasattr(model, "model") or not hasattr(model, "lm_head"):
+            raise TypeError("Qwen3 causal loader did not return .model and .lm_head")
+        lm, lm_head = model.model, model.lm_head
+    elif hasattr(model, "model") and hasattr(model.model, "language_model"):
         lm = model.model.language_model
         lm_head = model.lm_head if hasattr(model, "lm_head") else None
         _strip_vision(model.model)

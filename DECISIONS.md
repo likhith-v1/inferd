@@ -368,3 +368,33 @@ Blackwell stack. Treat FP8 here as a capacity tool, not a latency win.
   (~16–50× at c=32)**, never a single fragile number. Persisted to
   `bench/results/phase17_variance.json` and rendered in `bench/report.md`
   (Reproducibility section), the README, and the dashboard.
+
+## 2026-07-18 — Phase 14: family-wise gate approved; both pairs negative
+
+- **Pinned pair:** `Qwen3-8B@b968826d` target plus `Qwen3-0.6B@c1899de2`
+  draft, with matching tokenizer SHA-256 and `151936`-wide logits. The hybrid
+  control remains Qwen3.5-9B/0.8B.
+- **Correctness evidence:** hybrid passes all 18 frozen per-cell checks. Dense
+  passes 17/18; prompt 0 position 1 has TV `0.0640` versus null p99 `0.0573`.
+  An opt-in joint max-statistic test controls the family-wise false-failure rate
+  (about 16.5% for 18 separate p99 checks) and passes: dense max z `3.754` versus
+  null p99 `4.089`, hybrid `0.885` versus `3.737`. This alternative was added
+  after observing the frozen-gate failure. The maintainer explicitly approved it
+  as Phase 14's acceptance rule; the individual per-cell values remain recorded
+  as diagnostics rather than being hidden.
+- **Dense cache gate:** Qwen3 crops verification KV to the accepted prefix and
+  forwards only the residual/bonus token. Cached parallel-verify and reconciled
+  logits match direct full-prefix logits within the calibrated bf16 tolerance;
+  Qwen3.5 restores recurrent state and replays every emitted token.
+- **Measured result:** the full-attention pair is negative at every gamma.
+  Best is gamma 2: alpha `0.557`, `22.63` tok/s, median `0.508×` baseline with
+  repeat range `0.507–0.510×`. Hybrid best is gamma 4: alpha `0.501`, `19.84`
+  tok/s, median `0.435×`, range `0.431–0.441×`.
+- **Interpretation:** both pairs are negative, disproving the expected headline.
+  The pair-to-pair delta is not a controlled estimate of cropping's effect because
+  target, draft, vocabulary, α, and emitted token counts differ. Do not claim a
+  causal cropping uplift. The approved family-wise rule passes, so Phase 14 is
+  complete with an honest negative performance result.
+- **Artifacts:** `bench/results/20260718T120504Z_spec_phase14-full/`,
+  `bench/results/20260718T123245Z_spec_phase14-hybrid/`, and
+  `bench/results/20260718T123246Z_phase14_coordinator/`.

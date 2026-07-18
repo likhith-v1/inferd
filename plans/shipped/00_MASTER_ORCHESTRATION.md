@@ -51,6 +51,11 @@ Verified (HF, Jun 2026): all three Qwen IDs exist; **all three are multimodal** 
 - `load_target() / load_draft()` → return the **text-only** `language_model` backbone (+ processor.tokenizer); vision modules dropped.
 - `forward(tokens, kv) -> logits` — single source of truth for a forward pass; both spec-decode and batching call it.
 - `kv` is an opaque handle: contiguous in 02/04, paged in 05+. Callers never assume layout.
+- `ModelRunner.cache_reconciliation` declares the architecture strategy;
+  `checkpoint_speculation()` returns an opaque rollback handle and
+  `reconcile_speculation()` commits accepted tokens plus the residual/bonus token.
+- `validate_speculation_pair()` rejects tokenizer, special-token, or logit-width
+  mismatches before speculative generation.
 - 10 adds an FP8 load variant behind the same `load_target()` signature (dtype flag).
 
 ## Quality gates (run at every phase merge)

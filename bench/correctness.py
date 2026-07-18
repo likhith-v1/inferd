@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 from collections import Counter
 from pathlib import Path
+from statistics import fmean, pstdev
 from typing import Optional
 
 import inferd.env  # noqa: F401
@@ -134,6 +135,24 @@ def _pos_tokens(seqs: list[list[int]], t: int) -> list[int]:
     return [s[t] for s in seqs if len(s) > t]
 
 
+def _familywise_max_test(
+    cells: list[tuple[float, list[float]]],
+) -> tuple[bool, float, float]:
+    """Compare the largest standardized observed TV with its joint bootstrap null."""
+    standardized = []
+    for observed, null in cells:
+        mean = fmean(null)
+        scale = pstdev(null)
+        score = (observed - mean) / scale if scale else (float("inf") if observed else 0.0)
+        standardized.append(
+            (score, [(value - mean) / scale if scale else 0.0 for value in null])
+        )
+    observed_max = max(score for score, _ in standardized)
+    null_max = sorted(max(null[i] for _, null in standardized) for i in range(len(cells[0][1])))
+    critical = null_max[min(len(null_max) - 1, int(0.99 * len(null_max)))]
+    return observed_max <= critical, observed_max, critical
+
+
 def run(
     target_path: str,
     draft_path: str,
@@ -194,6 +213,7 @@ def run_seq(
     n_prompts: int = 3,
     bootstrap: int = 100,
     seed: int = 0,
+    familywise: bool = False,
 ) -> bool:
     """
     Multi-token correctness gate: compare the per-position token distribution of
@@ -213,6 +233,7 @@ def run_seq(
 
     prompts = PROMPTS[:n_prompts]
     all_pass = True
+    cells: list[tuple[float, list[float]]] = []
     for pi, prompt in enumerate(prompts):
         prompt_ids = target.tokenizer(prompt, return_tensors="pt").input_ids.to(target.device)
         spec = _spec_continuations(target, draft, prompt_ids, n, length, gamma,
@@ -220,6 +241,11 @@ def run_seq(
         pool = _direct_continuations(target, prompt_ids, 2 * n, length,
                                      profile.temperature, profile.top_p)
         direct = pool[:n]
+        idx = list(range(len(pool)))
+        splits = []
+        for _ in range(bootstrap):
+            rng.shuffle(idx)
+            splits.append(idx.copy())
 
         prompt_ok = True
         for t in range(length):
@@ -235,19 +261,24 @@ def run_seq(
             tv_obs = total_variation(spec_h, dir_h)
             # Null: TV between two disjoint random halves of the direct pool.
             null = []
-            idx = list(range(len(pool)))
-            for _ in range(bootstrap):
-                rng.shuffle(idx)
-                a = [pool[j] for j in idx[:n]]
-                b = [pool[j] for j in idx[n:2 * n]]
+            for split in splits:
+                a = [pool[j] for j in split[:n]]
+                b = [pool[j] for j in split[n:2 * n]]
                 null.append(total_variation(_hist(_pos_tokens(a, t)), _hist(_pos_tokens(b, t))))
-            null.sort()
-            p99 = null[min(len(null) - 1, int(0.99 * len(null)))]
+            ordered = sorted(null)
+            p99 = ordered[min(len(ordered) - 1, int(0.99 * len(ordered)))]
             ok = tv_obs <= p99
-            prompt_ok &= ok
+            cells.append((tv_obs, null))
+            if not familywise:
+                prompt_ok &= ok
             print(f"[correctness] prompt[{pi}] pos[{t}] TV={tv_obs:.4f} "
-                  f"null_p99={p99:.4f} -> {'PASS' if ok else 'FAIL'}")
+                  f"null_p99={p99:.4f} -> {'PASS' if ok else 'FLAG' if familywise else 'FAIL'}")
         all_pass &= prompt_ok
+
+    if familywise and cells:
+        all_pass, observed_max, critical = _familywise_max_test(cells)
+        print(f"[correctness] familywise_max_z={observed_max:.3f} "
+              f"null_p99={critical:.3f} -> {'PASS' if all_pass else 'FAIL'}")
 
     print(f"\n[correctness:seq] {'PASS' if all_pass else 'FAIL'} "
           f"(n={n}, length={length}, gamma={gamma}, prompts={len(prompts)})")
@@ -280,6 +311,8 @@ def main() -> int:
                              "(exercises verify ps[k>0] + replay).")
     parser.add_argument("--length", type=int, default=6, help="Continuation length (mode=seq).")
     parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--familywise", action="store_true",
+                        help="Control the seq gate's false-positive rate across all positions.")
     parser.add_argument("--selfcheck", action="store_true")
     args = parser.parse_args()
 
@@ -290,7 +323,8 @@ def main() -> int:
     if args.mode == "seq":
         ok = run_seq(args.target, args.draft, draft_adapter=args.draft_adapter,
                      n=args.n, length=args.length, gamma=args.gamma,
-                     n_prompts=args.n_prompts, bootstrap=args.bootstrap, seed=args.seed)
+                     n_prompts=args.n_prompts, bootstrap=args.bootstrap, seed=args.seed,
+                     familywise=args.familywise)
     else:
         ok = run(args.target, args.draft, draft_adapter=args.draft_adapter,
                  n=args.n, gamma=args.gamma, n_prompts=args.n_prompts,
