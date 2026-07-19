@@ -141,6 +141,16 @@ class ServeTest(unittest.TestCase):
             r = client.post("/generate", json={"prompt": "", "max_tokens": 8})
         self.assertEqual(r.status_code, 422)  # pydantic min_length
 
+    def test_oversized_prompt_rejected_before_tokenize(self):
+        # Unbounded prompts are a DoS on the event loop (tokenized synchronously
+        # before limit_violation runs); pydantic max_length rejects them first.
+        from serve.schemas import MAX_PROMPT_CHARS
+        engine = FakeEngine()
+        with TestClient(create_app(engine=engine)) as client:
+            r = client.post("/generate", json={"prompt": "a" * (MAX_PROMPT_CHARS + 1)})
+        self.assertEqual(r.status_code, 422)
+        self.assertEqual(engine.cancels, [])  # never reached submit/encode
+
     def test_disconnect_triggers_cancel(self):
         engine = FakeEngine(n_tokens=10, delay=0.2)  # slow stream
         with TestClient(create_app(engine=engine)) as client:
