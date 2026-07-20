@@ -113,7 +113,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="Run metric self-check (no GPU/model needed) and exit.",
     )
-    p.add_argument("--engine", choices=["hf", "vllm", "spec", "paged", "batched"], default="hf")
+    p.add_argument("--engine", choices=["hf", "vllm", "spec", "paged", "batched", "mlx"], default="hf")
     p.add_argument(
         "--model", default="Qwen3.5-9B",
         help="Model subdirectory under weights/ (e.g. Qwen3.5-9B).",
@@ -260,6 +260,19 @@ def main(argv: list[str] | None = None) -> int:
         )
         print("\n[harness] continuous-batching run complete.")
         _print_summary(result)
+
+    elif args.engine == "mlx":
+        from bench.runners.mlx import run
+        run(
+            model_name=args.model,
+            seed=args.seed,
+            max_tokens=args.max_tokens,
+            concurrency_grid=concurrency_grid,
+            warmup_runs=args.warmup_runs,
+            profile_name=args.profile,
+            results_dir=args.results_dir,
+        )
+        print("\n[harness] Apple MLX baseline run complete.")
 
     return 0
 
