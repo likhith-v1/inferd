@@ -11,7 +11,7 @@ from importlib.metadata import version
 from math import ceil
 from pathlib import Path
 
-from bench.metrics import env_stamp, itl, throughput, ttft, write_result_json
+from bench.metrics import env_stamp, itl, throughput, write_result_json
 from bench.workload import CANONICAL, GREEDY, MAX_TOKENS, PROMPTS, workload_hash
 
 APPLE_RESULTS = (Path(__file__).parent.parent / "results" / "apple").resolve()
@@ -113,20 +113,26 @@ def _single_stream(runner, prompt, profile, max_tokens, warmup_runs, seed):
     import mlx.core as mx
 
     _warmup(runner, prompt, warmup_runs)
+    mx.reset_peak_memory()
+    # ponytail: a max_tokens=1 run completes at the first sample, so step() does
+    # prefill + first-token sampling with NO follow-up decode — a clean TTFT.
+    ttft_scheduler = _scheduler(
+        runner, [prompt], concurrency=1, max_tokens=1, profile=profile, seed=seed
+    )
+    ttft_start = time.perf_counter()
+    ttft_scheduler.step()
+    mx.synchronize()
+    first_s = time.perf_counter() - ttft_start
+    # Full run for throughput; ITL is derived from total wall time and the clean TTFT.
     scheduler = _scheduler(
         runner, [prompt], concurrency=1, max_tokens=max_tokens, profile=profile, seed=seed
     )
-    mx.reset_peak_memory()
     start = time.perf_counter()
-    scheduler.step()
-    mx.synchronize()
-    first = time.perf_counter()
     completed = scheduler.run_until_complete()
     mx.synchronize()
     end = time.perf_counter()
     tokens = completed[0].generated_len
     total = end - start
-    first_s = ttft(start, first)
     return MlxSingleStreamResult(
         ttft_s=first_s,
         itl_s=itl(total, first_s, tokens),
@@ -204,7 +210,6 @@ def run(
             "total_ram_mb": _total_ram_mb(),
             "mlx": version("mlx"),
             "mlx_lm": version("mlx-lm"),
-            "artifact_fingerprint": runner.artifact.fingerprint,
         }),
         notes=[
             "Apple-only MLX 4-bit baseline; no ratio or parity claim versus CUDA bf16.",

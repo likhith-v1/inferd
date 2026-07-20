@@ -15,6 +15,8 @@ SOURCE_REVISION = "21073ac5a57f8ac6b159dae129728af51ac707e8"
 BITS = 4
 GROUP_SIZE = 64
 DTYPE = "bfloat16"
+MLX_VERSION = "0.31.2"
+MLX_LM_VERSION = "0.31.3"
 MANIFEST = "inferd_mlx_artifact.json"
 
 
@@ -42,8 +44,8 @@ def _manifest(path: Path) -> dict:
         "bits": BITS,
         "group_size": GROUP_SIZE,
         "dtype": DTYPE,
-        "mlx": "0.31.2",
-        "mlx_lm": "0.31.3",
+        "mlx": MLX_VERSION,
+        "mlx_lm": MLX_LM_VERSION,
     }
     mismatches = {key: (data.get(key), value) for key, value in expected.items() if data.get(key) != value}
     if mismatches:
@@ -58,7 +60,11 @@ def _manifest(path: Path) -> dict:
 def inspect_artifact(path: str | Path) -> ArtifactInfo:
     root = Path(path).expanduser().resolve()
     if not root.is_dir():
-        raise FileNotFoundError(f"MLX artifact directory does not exist: {root}")
+        raise FileNotFoundError(
+            f"MLX artifact directory does not exist: {root}. Convert once with "
+            "`python -m backends.mlx.loader convert --output <dir>`, then pass that "
+            "directory (the bench runner takes it as --model <dir>)."
+        )
     data = _manifest(root)
     return ArtifactInfo(
         path=root,
@@ -76,6 +82,13 @@ def inspect_artifact(path: str | Path) -> ArtifactInfo:
 def convert_artifact(output: str | Path) -> ArtifactInfo:
     from mlx_lm import convert
 
+    installed = (version("mlx"), version("mlx-lm"))
+    if installed != (MLX_VERSION, MLX_LM_VERSION):
+        raise RuntimeError(
+            f"convert requires mlx=={MLX_VERSION}, mlx-lm=={MLX_LM_VERSION}; found "
+            f"mlx=={installed[0]}, mlx-lm=={installed[1]}. Pin the backends/mlx env first "
+            "so the artifact provenance matches at load time."
+        )
     destination = Path(output).expanduser().resolve()
     if destination.exists():
         raise FileExistsError(f"conversion output already exists: {destination}")

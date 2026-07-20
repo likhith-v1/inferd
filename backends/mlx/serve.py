@@ -5,12 +5,26 @@ from __future__ import annotations
 import os
 from math import ceil
 
+from serve.engine import Engine
 
-def build_mlx_engine_from_env():
+
+class MlxEngine(Engine):
+    """Engine whose metrics report MLX unified-memory instead of CUDA VRAM."""
+
+    def metrics(self) -> dict:
+        import mlx.core as mx
+
+        snap = super().metrics()
+        # ponytail: torch.cuda peak is 0 on Mac; report the MLX allocator peak in the
+        # same field — an Apple compatibility value, not an NVIDIA-comparable VRAM figure.
+        snap["peak_vram_mb"] = round(mx.get_peak_memory() / 1024**2, 1)
+        return snap
+
+
+def build_mlx_engine_from_env() -> MlxEngine:
     from backends.mlx.backend import MlxSchedulerBackend
     from backends.mlx.runner import MlxModelRunner
     from core.scheduler import ContinuousBatchScheduler, SchedulerConfig
-    from serve.engine import Engine
 
     artifact = os.environ.get("INFERD_MLX_ARTIFACT")
     if not artifact:
@@ -35,7 +49,7 @@ def build_mlx_engine_from_env():
             seed=int(os.environ.get("INFERD_SEED", "0")),
         ),
     )
-    return Engine(
+    return MlxEngine(
         scheduler,
         runner.tokenizer,
         model_name="Qwen3-8B MLX 4-bit",

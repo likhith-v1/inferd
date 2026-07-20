@@ -34,5 +34,8 @@ class MlxModelRunner:
             raise ValueError("tokens must have shape [batch, sequence] with non-empty rows")
         cache = make_prompt_cache(self.model) if kv is None else kv
         logits = self.model(mx.array(token_ids), cache=cache)
-        mx.eval(logits)
-        return torch.from_numpy(np.asarray(logits, dtype=np.float32).copy()), cache
+        # ponytail: every caller uses only the last position, so slice in MLX before
+        # copying to CPU — a long prompt otherwise copies the whole [batch, seq, vocab].
+        last = logits[:, -1:, :]
+        mx.eval(last)
+        return torch.from_numpy(np.asarray(last, dtype=np.float32).copy()), cache
