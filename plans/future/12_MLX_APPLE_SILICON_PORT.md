@@ -2,6 +2,18 @@ Preferred model: Claude Opus 4.8 | Effort: high
 
 # 12 — MLX / Apple Silicon Port (top priority)
 
+> **Status (2026-07-20): code-complete on branch `mlx` (off `patch`), pending
+> Apple-silicon verification — NOT yet shipped.**
+> Done: plan → adversarial review (GPT-5.6 Sol) → implementation (isolated
+> `backends/mlx/` tree, `bench/runners/mlx.py`, one additive `--engine mlx` branch in
+> `bench/harness.py`) → dual review (Claude `code-review` + GPT-5.6 Sol) → applied fixes.
+> Isolation gate holds: `git diff patch -- core/ serve/` is empty; changes uncommitted.
+> Outstanding before this can move to `plans/shipped/` (all require a real M-series box —
+> unrunnable on the authoring macOS/CPU session): convert the pinned 4-bit MLX artifact;
+> pass `backends/mlx/tests/test_seam.py` + the `test_batched_equiv.py` stop gate; run the
+> serving smoke; generate one real baseline rung into `bench/results/apple/`; run the CUDA
+> suite green; then update the `AGENTS.md` / `README.md` / `plans/future/00` cross-refs.
+
 > Serve the inferd engine on Apple Silicon via a Metal/MLX backend. A **separate
 > track / distinct codebase**, not a change to the CUDA v1 runtime. Broadens the
 > project beyond the single RTX 5090 to "runs on the laptop too."
