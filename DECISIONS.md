@@ -398,3 +398,175 @@ Blackwell stack. Treat FP8 here as a capacity tool, not a latency win.
 - **Artifacts:** `bench/results/20260718T120504Z_spec_phase14-full/`,
   `bench/results/20260718T123245Z_spec_phase14-hybrid/`, and
   `bench/results/20260718T123246Z_phase14_coordinator/`.
+
+## 2026-08-06 — FP8 M=1 GEMM watch-item re-check (issue #12): not yet landed
+
+Re-checked the backlog watch-item from `plans/future/00_FUTURE_ROADMAP.md`
+("re-measure when torchao ships a fused M=1 GEMM on sm_120") against the live
+RTX 5090 (`torch.cuda.get_device_capability()` -> `(12, 0)`), rather than
+inferring from changelogs alone.
+
+- **Lockfile has not moved:** `uv.lock` has pinned `torchao==0.17.0` since
+  before the original 2026-06-28 measurement in this file, unchanged through
+  today. PyPI's current latest is `0.18.0`; its release notes contain no
+  M=1/decode-fusion or sm_120 single-stream inference kernel work -- that
+  release is NVFP4/mxfp8 *training* and MoE grouped-GEMM work, not this path.
+- **Source-level finding:** in the installed
+  `torchao/quantization/quantize_/workflows/float8/float8_tensor.py`
+  (`_float8_addmm_impl`), `Float8WeightOnlyConfig` (the `fp8` recipe, which
+  measured the worse 0.22x above) takes the branch
+  `torch.matmul(input_tensor, weight_tensor.dequantize())` -- an
+  unconditional dequant-to-bf16-then-bf16-matmul with no fused fp8 kernel at
+  all, on any hardware. Only `Float8DynamicActivationFloat8WeightConfig`
+  (`fp8-dynamic`) reaches the real fused path
+  (`addmm_float8_unwrapped_inference` / `torch._scaled_mm`).
+- **Direct micro-benchmark** (bf16 vs both FP8 recipes, `nn.Linear` at M=1,
+  three shapes representative of a 9B-class model, RTX 5090 / sm_120):
+
+  | K | N | bf16 | fp8-weightonly | fp8-dynamic |
+  |---|---|---|---|---|
+  | 4096 | 4096 | 24.7us | 204.9us (0.12x) | 193.5us (0.13x) |
+  | 4096 | 14336 | 83.4us | 903.4us (0.09x) | 201.5us (0.41x) |
+  | 14336 | 4096 | 87.8us | 903.0us (0.10x) | 193.6us (0.45x) |
+
+  The regression reproduces today, on the real fused-kernel path included,
+  and is consistent with (if not worse than) the original 06-28 measurement.
+
+**Decision:** the watch-item's precondition has not been met -- issue #12
+stays open. No code change: `AGENTS.md`'s "capacity not latency" framing for
+FP8 remains accurate as written. Next re-check should look for a torchao
+release past `0.18.0` that specifically touches single-token (M=1) float8
+inference GEMM dispatch on sm_120, then re-run this same micro-benchmark
+before trusting a changelog claim alone.
+
+## 2026-08-06 — Phase 13 (persistent paged runtime cache): single-sequence path landed, batched path deferred
+
+- **Scope narrowed mid-design (maintainer-confirmed):** the phase-13 plan
+  originally called for pages to back both the single-sequence and the
+  continuous-batching decode path end-to-end (with a measured
+  VRAM-vs-concurrency number as the exit criterion). While implementing, the
+  batched path revealed a real correctness risk: `core/batched_cache.py`'s
+  `stack_caches`/`split_caches` build a *temporary* N-row shallow-copy cache
+  per decode step; making pages the storage of record there means
+  `split_caches` would need to extract just the new token's delta from that
+  temporary object and write it into the pool, with nothing verifying the
+  untouched rest of the row still matches pool contents. Any drift (RoPE,
+  masking, padding) would silently diverge pool contents from what the model
+  actually attended to, and the existing equivalence gate (logits-only)
+  would pass while it happens. Narrowed to the single-sequence path this
+  pass; the batched path needs its own design, not a bolt-on.
+- **What landed:** `core/paged_cache.py` gains `PagedKVCache.reserve(seq_id,
+  n_tokens) -> start_pos` and `.write_layer(seq_id, layer, keys, values,
+  start_pos)`, splitting the existing (unchanged) `append_tokens` into a
+  once-per-step page-table extension plus per-layer writes -- needed because
+  a live `Cache.update()` is called once per layer per forward, not once per
+  step with all layers' data at hand.
+- **`core/paged_runtime_cache.py`** (new): `PagedRuntimeCache`, subclassing
+  `Qwen3_5DynamicCache` so `get_seq_length`/`get_mask_sizes`/
+  `has_previous_state`/`reorder_cache` are inherited unchanged. Only
+  `update()` is overridden: on the step's first `full_attention` layer it
+  calls `reserve()`, every full_attention layer's call does `write_layer()`
+  then `gather_layer()` and assigns the result to `self.key_cache[layer_idx]`
+  (matching the base class's own attribute contract, which is what keeps the
+  inherited methods correct with no override needed). Linear-attention
+  (`conv_states`/`recurrent_states`) is untouched -- fixed-size, not
+  per-position KV, already handled correctly by the base class and
+  `core/qwen35_patch.py`. Batch is asserted `==1` (loud failure, not silent
+  misbehavior) since this pass is single-sequence only.
+- **Validation:** `tests/test_paged_runtime_cache.py` (new, 6 tests, pure
+  synthetic tensors -- no model weights needed) drives incremental
+  multi-token and single-token steps whose cumulative length hits every
+  value in `{1,15,16,17,31,32,33}`, comparing `PagedRuntimeCache`'s output
+  against a manually-accumulated `torch.cat` ground truth at *every* step
+  (bit-exact, not just final-length) -- the gap the existing
+  `tests/test_paged_equiv.py` sweep didn't cover (it only tests one-shot
+  appends at fixed final lengths). Also covers: two sequences sharing one
+  pool without cross-contamination, `free_sequence()` releasing blocks with
+  no leaks (`assert_consistent()`), and the batch>1 / out-of-layer-order /
+  wrong-layer-type guards raising loudly. All 6 new tests plus the existing
+  `test_paged_cache --selfcheck`, `tests/test_paged_equiv.py` (7),
+  `tests/test_scheduler.py`, and `tests/test_serve.py` (26) suites pass
+  unchanged -- 39 tests total, run on the live RTX 5090 (sm_120) in a fresh
+  `phase-13-paged-cache` worktree.
+- **What did not land, on purpose:** no wiring into `core/scheduler.py`,
+  `ModelRunnerBackend`, or `serve/app.py` -- `GenerationRequest.kv` still
+  goes through HF's implicit `Qwen3_5DynamicCache` construction and
+  `stack_caches`/`split_caches` unchanged. No real-model end-to-end
+  equivalence run either: `merged/9b` and `weights/` do not exist on this
+  box (checked this session), so even a batch=1 model-level comparison
+  can't run here yet; the tests above validate the cache's numerical
+  bookkeeping directly against synthetic tensors instead, which is the part
+  this file actually owns. **No VRAM-vs-concurrency measurement this pass**
+  -- that requires the batched path, which is explicitly deferred.
+- **Next steps:** (1) design `stack_caches`/`split_caches` so the batched
+  forward's temporary shell reads/writes through the pool with an explicit
+  consistency check (not silent trust), (2) wire `PagedRuntimeCache` into
+  `ModelRunnerBackend.prefill`/scheduler admit-evict once (1) lands, (3) only
+  then re-attempt the `bench.harness --engine batched --report-vram`
+  measurement and the scheduler block-budget wiring from the original plan.
+
+## 2026-08-06 — Phase 13 continued: batched decode path wired, opt-in
+
+- **What landed:** `BatchedPagedCache` (`core/paged_runtime_cache.py`) —
+  combines N `PagedRuntimeCache` rows sharing one pool into a one-step
+  container for `ModelRunnerBackend.decode_batch`'s batched forward.
+  Full-attention `update()` writes each row's new token from its **raw,
+  unpadded** per-row slice (`key_states[i:i+1]`/`value_states[i:i+1]`,
+  before any padding/concatenation) directly into the pool via
+  `pool.write_layer` -- the fix for the correctness risk identified in the
+  previous entry: nothing is ever derived from padded/concatenated output
+  and written back on trust. Linear-attention `conv_states`/
+  `recurrent_states` are still cat-per-step and scattered back per row
+  after the forward (`scatter_linear_state_back`), mirroring
+  `core/batched_cache.py`'s existing, proven slicing for exactly those two
+  fields -- not reimplemented.
+- **`core/scheduler.py`:** `ModelRunnerBackend.__init__` gains an optional
+  `pool: PagedKVCache | None = None` (default preserves today's
+  `stack_caches`/`split_caches` behavior exactly -- zero risk to
+  `serve/app.py` or `scripts/hero_fp8.py`, neither of which pass a pool
+  this pass). `SchedulerBackend.prefill`/`ModelRunnerBackend.prefill` gain
+  `seq_id`; `_admit_waiting` passes `req.request_id`. `decode_batch`
+  branches on `self.pool`. `_evict_completed`/`cancel` now call
+  `req.kv.free_sequence()` (via a new `_release_kv` helper, `hasattr`-guarded
+  so plain HF-cache callers are unaffected) before dropping the handle --
+  closing the leak that would otherwise result from paged sequences never
+  being freed on eviction.
+- **`bench/runners/batched.py` / `bench/harness.py`:** new opt-in `paged`
+  flag (`--paged` on the CLI) threaded through `run` ->
+  `_run_scheduler_point` -> `_build_scheduler`, which builds a real
+  `PagedKVCache` sized from the loaded model's own config
+  (`num_key_value_heads`, `head_dim`, count of `full_attention` layers in
+  `layer_types`) when set. **Deliberately opt-in, not the new default**:
+  this runner is what produced the published `~4.6x of vLLM` headline
+  number, and the paged path can't be verified end-to-end on this box
+  (`merged/9b` still doesn't exist -- checked again this session), so
+  changing the default would risk silently invalidating an already-reported
+  result without the ability to re-verify it here.
+- **Validation:** `tests/test_batched_paged_cache.py` (new, 6 tests) is the
+  discriminating test for the bug this design exists to prevent -- N rows
+  sharing one pool, driven through 5 batched decode steps with synthetic
+  tensors, asserting every row's pool contents exactly match that row's own
+  verbatim per-step inputs (bit-exact, not just shape) and
+  `pool.assert_consistent()` holds after every step (no cross-row writes).
+  Also covers linear-state scatter-back round-tripping per row, the
+  single-token-only guard, the row/batch-size mismatch guard, and
+  leak-free `free_sequence()` across all rows. All pre-existing suites
+  (`test_scheduler`, `test_serve`, `test_paged_equiv`,
+  `test_paged_runtime_cache`, `test_run_all_cohort`, `test_phase14`,
+  `test_batched_cache`, `test_vllm_runner`) stay green unchanged -- 84
+  tests total.
+- **What did not land, on purpose:** `serve/app.py` wiring (constructing
+  the shared pool for the live serving path) and the scheduler's
+  `_used_blocks` real-allocation counter (today's reservation-based
+  admission accounting is untouched) are still deferred to a following
+  pass, once the opt-in path has run against real weights at least once.
+  **No `--report-vram` number this pass either** -- same `merged/9b` gap as
+  both prior entries; what's proven here is the cache's numerical
+  bookkeeping and cross-sequence isolation, which is what this file
+  actually owns.
+- **Next steps:** (1) get `merged/9b` (or equivalent) onto this box and run
+  `bench.harness --engine batched --paged --report-vram` against it,
+  comparing logits/tok-s/VRAM against the non-paged run at matched
+  concurrency; (2) if that passes, wire `serve/app.py` and flip the
+  scheduler's block accounting to track real allocations alongside the
+  existing reservation; (3) only then consider `--paged` as a default.

@@ -21,7 +21,7 @@ class FakeBackend:
         self.prefills = 0
         self.decodes = 0
 
-    def prefill(self, prompt_ids):
+    def prefill(self, prompt_ids, seq_id=None):
         self.prefills += 1
         return self._logits(10), {"seen": list(prompt_ids)}
 

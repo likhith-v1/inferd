@@ -21,6 +21,7 @@ import torch  # noqa: E402
 from bench.metrics import BenchResult, ConcurrencySweepPoint, VramSampler, env_stamp, throughput, write_result_json  # noqa: E402
 from bench.workload import CANONICAL, GREEDY, MAX_TOKENS, PROMPTS, model_fingerprint, request_token_budgets, workload_hash  # noqa: E402
 from core.model_runner import ModelRunner  # noqa: E402
+from core.paged_cache import PagedKVCache  # noqa: E402
 from core.scheduler import (
     ContinuousBatchScheduler,
     ModelRunnerBackend,
@@ -53,6 +54,22 @@ def _default_max_blocks(
     return max(concurrency_grid) * blocks_per_seq
 
 
+def _build_pool(runner: ModelRunner, max_blocks: int, block_size: int) -> PagedKVCache:
+    """Size a real paged pool from the loaded model's own config."""
+    config = runner.lm.config
+    num_full_attention_layers = sum(1 for t in config.layer_types if t == "full_attention")
+    dtype = next(runner.lm.parameters()).dtype
+    return PagedKVCache(
+        num_layers=num_full_attention_layers,
+        num_blocks=max_blocks,
+        block_size=block_size,
+        num_kv_heads=config.num_key_value_heads,
+        head_dim=config.head_dim,
+        dtype=dtype,
+        device=runner.device,
+    )
+
+
 def _build_scheduler(
     runner: ModelRunner,
     prompts: list[str],
@@ -66,9 +83,11 @@ def _build_scheduler(
     profile_name: str,
     continuous: bool = True,
     vary_lengths: bool = False,
+    paged: bool = False,
 ) -> ContinuousBatchScheduler:
     profile = CANONICAL if profile_name == "canonical" else GREEDY
-    backend = ModelRunnerBackend(runner)
+    pool = _build_pool(runner, max_blocks, block_size) if paged else None
+    backend = ModelRunnerBackend(runner, pool=pool)
     scheduler = ContinuousBatchScheduler(
         backend,
         SchedulerConfig(
@@ -107,6 +126,7 @@ def _run_scheduler_point(
     continuous: bool = True,
     vary_lengths: bool = False,
     warmup_runs: int = 0,
+    paged: bool = False,
 ) -> tuple[ConcurrencySweepPoint, dict]:
     # Warmup: discard timing, but populate CUDA kernels and batched decode paths.
     for _ in range(warmup_runs):
@@ -122,6 +142,7 @@ def _run_scheduler_point(
             profile_name=profile_name,
             continuous=continuous,
             vary_lengths=vary_lengths,
+            paged=paged,
         )
         scheduler.run_until_complete()
         if torch.cuda.is_available():
@@ -139,6 +160,7 @@ def _run_scheduler_point(
         profile_name=profile_name,
         continuous=continuous,
         vary_lengths=vary_lengths,
+        paged=paged,
     )
 
     if torch.cuda.is_available():
@@ -184,6 +206,7 @@ def run(
     static_baseline: bool = False,
     vary_lengths: bool = False,
     cohort_id: str | None = None,
+    paged: bool = False,
 ) -> BenchResult:
     if concurrency_grid is None:
         concurrency_grid = [1, 2, 4, 8, 16]
@@ -221,7 +244,11 @@ def run(
             "FCFS continuous batching with one batched decode forward per iteration.",
             "Batched decode equivalence is covered by bench.batched_equiv.",
             f"Fixed pool of {total_requests} requests at each batch width.",
-            "Paged blocks are admission accounting; runtime KV still uses HF caches.",
+            (
+                "Runtime KV backed by a real PagedKVCache pool (opt-in, paged=True)."
+                if paged else
+                "Paged blocks are admission accounting; runtime KV still uses HF caches."
+            ),
             "Batched speculative decoding is not implemented.",
         ],
     )
@@ -246,6 +273,7 @@ def run(
             continuous=True,
             vary_lengths=vary_lengths,
             warmup_runs=warmup_runs,
+            paged=paged,
         )
         result.concurrency_sweep.append(point)
         row = {"concurrency": c, "continuous_tok_s": point.throughput_tok_s, **metrics}
@@ -264,6 +292,7 @@ def run(
                 continuous=False,
                 vary_lengths=vary_lengths,
                 warmup_runs=warmup_runs,
+                paged=paged,
             )
             row["static_tok_s"] = static_point.throughput_tok_s
             row["continuous_speedup_vs_static"] = (
