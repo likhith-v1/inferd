@@ -188,6 +188,63 @@ class PagedKVCache:
                 self.allocator.free(new_blocks)
             raise
 
+    def reserve(self, seq_id: int, n_tokens: int) -> int:
+        """
+        Extend a sequence's page table for `n_tokens` new positions without
+        writing any tensor data. Returns the starting logical position for the
+        new tokens. Call once per decode step, before any per-layer
+        `write_layer` calls for that step -- unlike `append_tokens`, this does
+        not touch `key_cache`/`value_cache`, so it is safe for a caller that
+        writes one layer at a time (e.g. a live `Cache.update()` invoked once
+        per layer during a single model forward).
+        """
+        table = self._table(seq_id)
+        start_pos = table.length
+        if n_tokens == 0:
+            return start_pos
+
+        needed_capacity = table.length + n_tokens
+        needed_blocks = (needed_capacity + self.block_size - 1) // self.block_size
+        extra_blocks = needed_blocks - len(table.blocks)
+        new_blocks = self.allocator.allocate(extra_blocks) if extra_blocks > 0 else []
+
+        table.blocks.extend(new_blocks)
+        table.length += n_tokens
+        return start_pos
+
+    def write_layer(
+        self,
+        seq_id: int,
+        layer: int,
+        keys: torch.Tensor,
+        values: torch.Tensor,
+        start_pos: int,
+    ) -> None:
+        """
+        Write one layer's K/V for positions [start_pos, start_pos + n_tokens)
+        into blocks already extended by a prior `reserve` call for this step.
+
+        `keys`/`values` are shaped [n_tokens, num_kv_heads, head_dim].
+        """
+        table = self._table(seq_id)
+        self._check_layer(layer)
+        n_tokens = int(keys.shape[0])
+        if keys.shape != values.shape or keys.shape[1:] != (self.num_kv_heads, self.head_dim):
+            raise ValueError(
+                f"expected keys/values [tokens, {self.num_kv_heads}, {self.head_dim}], "
+                f"got {tuple(keys.shape)}/{tuple(values.shape)}"
+            )
+        if start_pos + n_tokens > table.length:
+            raise ValueError(
+                f"positions [{start_pos}, {start_pos + n_tokens}) were not reserved "
+                f"(sequence length is {table.length}) -- call reserve() first"
+            )
+        for rel_pos in range(n_tokens):
+            abs_pos = start_pos + rel_pos
+            block, offset = table.block_for_pos(abs_pos)
+            self.key_cache[layer][block, :, offset, :] = keys[rel_pos]
+            self.value_cache[layer][block, :, offset, :] = values[rel_pos]
+
     def gather_layer(self, seq_id: int, layer: int) -> tuple[torch.Tensor, torch.Tensor]:
         """Return contiguous K/V tensors shaped [seq_len, num_kv_heads, head_dim]."""
         table = self._table(seq_id)
@@ -398,6 +455,39 @@ def _selfcheck() -> None:
     cache.free_sequence(11)
     cache.assert_consistent()
     assert cache.allocator.free_count == cache.num_blocks
+
+    # reserve()/write_layer(): per-layer incremental writes into one
+    # reservation, mimicking a live Cache.update() called once per layer.
+    cache.create_sequence(20)
+    start = cache.reserve(20, 7)
+    assert start == 0
+    for layer in range(2):
+        cache.write_layer(20, layer, keys[layer], values[layer], start)
+    cache.assert_consistent()
+    assert cache.sequence_length(20) == 7
+    for layer in range(2):
+        got_k, got_v = cache.gather_layer(20, layer)
+        torch.testing.assert_close(got_k, keys[layer])
+        torch.testing.assert_close(got_v, values[layer])
+    # A second reservation must not re-extend positions already written.
+    start2 = cache.reserve(20, 1)
+    assert start2 == 7
+    extra = [torch.full((1, 3, 5), 99.0) for _ in range(2)]
+    for layer in range(2):
+        cache.write_layer(20, layer, extra[layer], extra[layer], start2)
+    assert cache.sequence_length(20) == 8
+    for layer in range(2):
+        got_k, _ = cache.gather_layer(20, layer)
+        torch.testing.assert_close(got_k[:7], keys[layer])
+        torch.testing.assert_close(got_k[7:8], extra[layer])
+    # write_layer without a matching reserve must fail, not silently corrupt.
+    try:
+        cache.write_layer(20, 0, extra[0], extra[0], 8)
+        raise AssertionError("expected ValueError for unreserved position")
+    except ValueError:
+        pass
+    cache.free_sequence(20)
+    cache.assert_consistent()
 
     class _FakeQwenCache:
         pass

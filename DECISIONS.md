@@ -438,3 +438,69 @@ FP8 remains accurate as written. Next re-check should look for a torchao
 release past `0.18.0` that specifically touches single-token (M=1) float8
 inference GEMM dispatch on sm_120, then re-run this same micro-benchmark
 before trusting a changelog claim alone.
+
+## 2026-08-06 — Phase 13 (persistent paged runtime cache): single-sequence path landed, batched path deferred
+
+- **Scope narrowed mid-design (maintainer-confirmed):** the phase-13 plan
+  originally called for pages to back both the single-sequence and the
+  continuous-batching decode path end-to-end (with a measured
+  VRAM-vs-concurrency number as the exit criterion). While implementing, the
+  batched path revealed a real correctness risk: `core/batched_cache.py`'s
+  `stack_caches`/`split_caches` build a *temporary* N-row shallow-copy cache
+  per decode step; making pages the storage of record there means
+  `split_caches` would need to extract just the new token's delta from that
+  temporary object and write it into the pool, with nothing verifying the
+  untouched rest of the row still matches pool contents. Any drift (RoPE,
+  masking, padding) would silently diverge pool contents from what the model
+  actually attended to, and the existing equivalence gate (logits-only)
+  would pass while it happens. Narrowed to the single-sequence path this
+  pass; the batched path needs its own design, not a bolt-on.
+- **What landed:** `core/paged_cache.py` gains `PagedKVCache.reserve(seq_id,
+  n_tokens) -> start_pos` and `.write_layer(seq_id, layer, keys, values,
+  start_pos)`, splitting the existing (unchanged) `append_tokens` into a
+  once-per-step page-table extension plus per-layer writes -- needed because
+  a live `Cache.update()` is called once per layer per forward, not once per
+  step with all layers' data at hand.
+- **`core/paged_runtime_cache.py`** (new): `PagedRuntimeCache`, subclassing
+  `Qwen3_5DynamicCache` so `get_seq_length`/`get_mask_sizes`/
+  `has_previous_state`/`reorder_cache` are inherited unchanged. Only
+  `update()` is overridden: on the step's first `full_attention` layer it
+  calls `reserve()`, every full_attention layer's call does `write_layer()`
+  then `gather_layer()` and assigns the result to `self.key_cache[layer_idx]`
+  (matching the base class's own attribute contract, which is what keeps the
+  inherited methods correct with no override needed). Linear-attention
+  (`conv_states`/`recurrent_states`) is untouched -- fixed-size, not
+  per-position KV, already handled correctly by the base class and
+  `core/qwen35_patch.py`. Batch is asserted `==1` (loud failure, not silent
+  misbehavior) since this pass is single-sequence only.
+- **Validation:** `tests/test_paged_runtime_cache.py` (new, 6 tests, pure
+  synthetic tensors -- no model weights needed) drives incremental
+  multi-token and single-token steps whose cumulative length hits every
+  value in `{1,15,16,17,31,32,33}`, comparing `PagedRuntimeCache`'s output
+  against a manually-accumulated `torch.cat` ground truth at *every* step
+  (bit-exact, not just final-length) -- the gap the existing
+  `tests/test_paged_equiv.py` sweep didn't cover (it only tests one-shot
+  appends at fixed final lengths). Also covers: two sequences sharing one
+  pool without cross-contamination, `free_sequence()` releasing blocks with
+  no leaks (`assert_consistent()`), and the batch>1 / out-of-layer-order /
+  wrong-layer-type guards raising loudly. All 6 new tests plus the existing
+  `test_paged_cache --selfcheck`, `tests/test_paged_equiv.py` (7),
+  `tests/test_scheduler.py`, and `tests/test_serve.py` (26) suites pass
+  unchanged -- 39 tests total, run on the live RTX 5090 (sm_120) in a fresh
+  `phase-13-paged-cache` worktree.
+- **What did not land, on purpose:** no wiring into `core/scheduler.py`,
+  `ModelRunnerBackend`, or `serve/app.py` -- `GenerationRequest.kv` still
+  goes through HF's implicit `Qwen3_5DynamicCache` construction and
+  `stack_caches`/`split_caches` unchanged. No real-model end-to-end
+  equivalence run either: `merged/9b` and `weights/` do not exist on this
+  box (checked this session), so even a batch=1 model-level comparison
+  can't run here yet; the tests above validate the cache's numerical
+  bookkeeping directly against synthetic tensors instead, which is the part
+  this file actually owns. **No VRAM-vs-concurrency measurement this pass**
+  -- that requires the batched path, which is explicitly deferred.
+- **Next steps:** (1) design `stack_caches`/`split_caches` so the batched
+  forward's temporary shell reads/writes through the pool with an explicit
+  consistency check (not silent trust), (2) wire `PagedRuntimeCache` into
+  `ModelRunnerBackend.prefill`/scheduler admit-evict once (1) lands, (3) only
+  then re-attempt the `bench.harness --engine batched --report-vram`
+  measurement and the scheduler block-budget wiring from the original plan.
