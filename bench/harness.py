@@ -144,6 +144,8 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
                    help="Seeded per-request max_tokens variance (exposes continuous-vs-static gap).")
     p.add_argument("--report-vram", action="store_true", dest="report_vram",
                    help="Accepted for phase-05 command compatibility; paged runner reports KV MB.")
+    p.add_argument("--paged", action="store_true", dest="paged",
+                   help="Back runtime KV with a real PagedKVCache pool instead of HF caches (engine=batched).")
     p.add_argument("--seed", type=int, default=0)
     p.add_argument("--max-tokens", type=int, default=256, dest="max_tokens")
     p.add_argument(
@@ -257,6 +259,7 @@ def main(argv: list[str] | None = None) -> int:
             total_requests=args.total_requests,
             static_baseline=args.static_baseline,
             vary_lengths=args.vary_lengths,
+            paged=args.paged,
         )
         print("\n[harness] continuous-batching run complete.")
         _print_summary(result)

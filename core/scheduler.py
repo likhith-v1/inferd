@@ -17,6 +17,8 @@ import inferd.env  # noqa: F401  (CUDA preload before torch)
 import torch  # noqa: E402
 
 from core.batched_cache import split_caches, stack_caches  # noqa: E402
+from core.paged_cache import PagedKVCache  # noqa: E402
+from core.paged_runtime_cache import BatchedPagedCache, PagedRuntimeCache  # noqa: E402
 from core.spec_decode import nucleus_probs, sample_from  # noqa: E402
 
 
@@ -108,8 +110,12 @@ class SchedulerBackend(Protocol):
     eos_token_id: int | None
     device: str
 
-    def prefill(self, prompt_ids: list[int]) -> tuple[torch.Tensor, object]:
-        """Return next-token logits [1, vocab] and an opaque kv handle."""
+    def prefill(self, prompt_ids: list[int], seq_id: int | None = None) -> tuple[torch.Tensor, object]:
+        """Return next-token logits [1, vocab] and an opaque kv handle.
+
+        `seq_id` identifies the sequence to a paged backend; ignored by a
+        backend with no pool.
+        """
 
     def decode_batch(
         self, token_ids: list[int], kvs: list[object]
@@ -122,16 +128,30 @@ class SchedulerBackend(Protocol):
 
 
 class ModelRunnerBackend:
-    """Scheduler backend for core.model_runner.ModelRunner."""
+    """Scheduler backend for core.model_runner.ModelRunner.
 
-    def __init__(self, runner) -> None:
+    `pool=None` (default) preserves the original HF-cache behavior exactly:
+    implicit `Qwen3_5DynamicCache` construction plus `stack_caches`/
+    `split_caches` for batched decode. Passing a shared `PagedKVCache` opts
+    into `PagedRuntimeCache`/`BatchedPagedCache` instead -- real paged
+    storage backing both prefill and the batched decode step.
+    """
+
+    def __init__(self, runner, pool: PagedKVCache | None = None) -> None:
         self.runner = runner
         self.device = runner.device
         self.eos_token_id = runner.tokenizer.eos_token_id
+        self.pool = pool
 
-    def prefill(self, prompt_ids: list[int]) -> tuple[torch.Tensor, object]:
+    def prefill(self, prompt_ids: list[int], seq_id: int | None = None) -> tuple[torch.Tensor, object]:
         tokens = torch.tensor([prompt_ids], dtype=torch.long, device=self.device)
-        logits, kv = self.runner.forward(tokens, None)
+        if self.pool is not None:
+            if seq_id is None:
+                raise ValueError("seq_id is required when the backend has a pool")
+            kv = PagedRuntimeCache(self.runner.lm.config, pool=self.pool, seq_id=seq_id)
+            logits, kv = self.runner.forward(tokens, kv)
+        else:
+            logits, kv = self.runner.forward(tokens, None)
         return logits[:, -1, :], kv
 
     def decode(self, token_id: int, kv: object) -> tuple[torch.Tensor, object]:
@@ -143,10 +163,28 @@ class ModelRunnerBackend:
         self, token_ids: list[int], kvs: list[object]
     ) -> tuple[list[torch.Tensor], list[object]]:
         """One batched decode: stack caches, forward, split back per sequence."""
-        batched, lengths = stack_caches(kvs)
         batch = len(token_ids)
-        max_len = max(lengths)
         input_ids = torch.tensor([[t] for t in token_ids], dtype=torch.long, device=self.device)
+
+        if self.pool is not None:
+            batched = BatchedPagedCache(kvs)
+            lengths = batched.lengths
+            max_len = max(lengths)
+            attn = torch.zeros((batch, max_len + 1), dtype=torch.bool, device=self.device)
+            for i, length in enumerate(lengths):
+                attn[i, max_len - length:] = True
+            position_ids = torch.tensor(
+                [[length] for length in lengths], dtype=torch.long, device=self.device
+            )
+            logits, batched = self.runner.forward(
+                input_ids, batched, attention_mask=attn, position_ids=position_ids
+            )
+            batched.scatter_linear_state_back()
+            last = logits[:, -1, :]
+            return [last[i:i + 1] for i in range(batch)], kvs
+
+        batched, lengths = stack_caches(kvs)
+        max_len = max(lengths)
         attn = torch.zeros((batch, max_len + 1), dtype=torch.bool, device=self.device)
         for i, length in enumerate(lengths):
             attn[i, max_len - length:] = True
@@ -285,7 +323,7 @@ class ContinuousBatchScheduler:
         if request_id in self._running:
             req = self._running.pop(request_id)
             self._used_blocks -= req.reserved_blocks
-            req.kv = None
+            _release_kv(req)
             req.last_logits = None
         else:
             for i, req in enumerate(self._waiting):
@@ -318,7 +356,7 @@ class ContinuousBatchScheduler:
             self._waiting.popleft()
             req.reserved_blocks = needed
             req.status = RequestStatus.RUNNING
-            req.last_logits, req.kv = self.backend.prefill(req.prompt_ids)
+            req.last_logits, req.kv = self.backend.prefill(req.prompt_ids, seq_id=req.request_id)
             self._running[req.request_id] = req
             self._used_blocks += needed
             self._max_blocks_used = max(self._max_blocks_used, self._used_blocks)
@@ -327,7 +365,7 @@ class ContinuousBatchScheduler:
     def _evict_completed(self, request_id: int) -> None:
         req = self._running.pop(request_id)
         self._used_blocks -= req.reserved_blocks
-        req.kv = None
+        _release_kv(req)
         req.last_logits = None
         self._completed[request_id] = req
         self._evicted += 1
@@ -353,6 +391,13 @@ class ContinuousBatchScheduler:
             raise ValueError(f"duplicate request_id: {requested}")
         self._next_id = max(self._next_id, requested + 1)
         return requested
+
+
+def _release_kv(req: GenerationRequest) -> None:
+    """Free a paged sequence's blocks (if any) before dropping the kv handle."""
+    if req.kv is not None and hasattr(req.kv, "free_sequence"):
+        req.kv.free_sequence()
+    req.kv = None
 
 
 def _to_id_list(prompt_ids: list[int] | torch.Tensor) -> list[int]:

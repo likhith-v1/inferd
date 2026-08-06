@@ -504,3 +504,69 @@ before trusting a changelog claim alone.
   `ModelRunnerBackend.prefill`/scheduler admit-evict once (1) lands, (3) only
   then re-attempt the `bench.harness --engine batched --report-vram`
   measurement and the scheduler block-budget wiring from the original plan.
+
+## 2026-08-06 — Phase 13 continued: batched decode path wired, opt-in
+
+- **What landed:** `BatchedPagedCache` (`core/paged_runtime_cache.py`) —
+  combines N `PagedRuntimeCache` rows sharing one pool into a one-step
+  container for `ModelRunnerBackend.decode_batch`'s batched forward.
+  Full-attention `update()` writes each row's new token from its **raw,
+  unpadded** per-row slice (`key_states[i:i+1]`/`value_states[i:i+1]`,
+  before any padding/concatenation) directly into the pool via
+  `pool.write_layer` -- the fix for the correctness risk identified in the
+  previous entry: nothing is ever derived from padded/concatenated output
+  and written back on trust. Linear-attention `conv_states`/
+  `recurrent_states` are still cat-per-step and scattered back per row
+  after the forward (`scatter_linear_state_back`), mirroring
+  `core/batched_cache.py`'s existing, proven slicing for exactly those two
+  fields -- not reimplemented.
+- **`core/scheduler.py`:** `ModelRunnerBackend.__init__` gains an optional
+  `pool: PagedKVCache | None = None` (default preserves today's
+  `stack_caches`/`split_caches` behavior exactly -- zero risk to
+  `serve/app.py` or `scripts/hero_fp8.py`, neither of which pass a pool
+  this pass). `SchedulerBackend.prefill`/`ModelRunnerBackend.prefill` gain
+  `seq_id`; `_admit_waiting` passes `req.request_id`. `decode_batch`
+  branches on `self.pool`. `_evict_completed`/`cancel` now call
+  `req.kv.free_sequence()` (via a new `_release_kv` helper, `hasattr`-guarded
+  so plain HF-cache callers are unaffected) before dropping the handle --
+  closing the leak that would otherwise result from paged sequences never
+  being freed on eviction.
+- **`bench/runners/batched.py` / `bench/harness.py`:** new opt-in `paged`
+  flag (`--paged` on the CLI) threaded through `run` ->
+  `_run_scheduler_point` -> `_build_scheduler`, which builds a real
+  `PagedKVCache` sized from the loaded model's own config
+  (`num_key_value_heads`, `head_dim`, count of `full_attention` layers in
+  `layer_types`) when set. **Deliberately opt-in, not the new default**:
+  this runner is what produced the published `~4.6x of vLLM` headline
+  number, and the paged path can't be verified end-to-end on this box
+  (`merged/9b` still doesn't exist -- checked again this session), so
+  changing the default would risk silently invalidating an already-reported
+  result without the ability to re-verify it here.
+- **Validation:** `tests/test_batched_paged_cache.py` (new, 6 tests) is the
+  discriminating test for the bug this design exists to prevent -- N rows
+  sharing one pool, driven through 5 batched decode steps with synthetic
+  tensors, asserting every row's pool contents exactly match that row's own
+  verbatim per-step inputs (bit-exact, not just shape) and
+  `pool.assert_consistent()` holds after every step (no cross-row writes).
+  Also covers linear-state scatter-back round-tripping per row, the
+  single-token-only guard, the row/batch-size mismatch guard, and
+  leak-free `free_sequence()` across all rows. All pre-existing suites
+  (`test_scheduler`, `test_serve`, `test_paged_equiv`,
+  `test_paged_runtime_cache`, `test_run_all_cohort`, `test_phase14`,
+  `test_batched_cache`, `test_vllm_runner`) stay green unchanged -- 84
+  tests total.
+- **What did not land, on purpose:** `serve/app.py` wiring (constructing
+  the shared pool for the live serving path) and the scheduler's
+  `_used_blocks` real-allocation counter (today's reservation-based
+  admission accounting is untouched) are still deferred to a following
+  pass, once the opt-in path has run against real weights at least once.
+  **No `--report-vram` number this pass either** -- same `merged/9b` gap as
+  both prior entries; what's proven here is the cache's numerical
+  bookkeeping and cross-sequence isolation, which is what this file
+  actually owns.
+- **Next steps:** (1) get `merged/9b` (or equivalent) onto this box and run
+  `bench.harness --engine batched --paged --report-vram` against it,
+  comparing logits/tok-s/VRAM against the non-paged run at matched
+  concurrency; (2) if that passes, wire `serve/app.py` and flip the
+  scheduler's block accounting to track real allocations alongside the
+  existing reservation; (3) only then consider `--paged` as a default.
