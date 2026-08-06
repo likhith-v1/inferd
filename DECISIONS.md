@@ -398,3 +398,43 @@ Blackwell stack. Treat FP8 here as a capacity tool, not a latency win.
 - **Artifacts:** `bench/results/20260718T120504Z_spec_phase14-full/`,
   `bench/results/20260718T123245Z_spec_phase14-hybrid/`, and
   `bench/results/20260718T123246Z_phase14_coordinator/`.
+
+## 2026-08-06 — FP8 M=1 GEMM watch-item re-check (issue #12): not yet landed
+
+Re-checked the backlog watch-item from `plans/future/00_FUTURE_ROADMAP.md`
+("re-measure when torchao ships a fused M=1 GEMM on sm_120") against the live
+RTX 5090 (`torch.cuda.get_device_capability()` -> `(12, 0)`), rather than
+inferring from changelogs alone.
+
+- **Lockfile has not moved:** `uv.lock` has pinned `torchao==0.17.0` since
+  before the original 2026-06-28 measurement in this file, unchanged through
+  today. PyPI's current latest is `0.18.0`; its release notes contain no
+  M=1/decode-fusion or sm_120 single-stream inference kernel work -- that
+  release is NVFP4/mxfp8 *training* and MoE grouped-GEMM work, not this path.
+- **Source-level finding:** in the installed
+  `torchao/quantization/quantize_/workflows/float8/float8_tensor.py`
+  (`_float8_addmm_impl`), `Float8WeightOnlyConfig` (the `fp8` recipe, which
+  measured the worse 0.22x above) takes the branch
+  `torch.matmul(input_tensor, weight_tensor.dequantize())` -- an
+  unconditional dequant-to-bf16-then-bf16-matmul with no fused fp8 kernel at
+  all, on any hardware. Only `Float8DynamicActivationFloat8WeightConfig`
+  (`fp8-dynamic`) reaches the real fused path
+  (`addmm_float8_unwrapped_inference` / `torch._scaled_mm`).
+- **Direct micro-benchmark** (bf16 vs both FP8 recipes, `nn.Linear` at M=1,
+  three shapes representative of a 9B-class model, RTX 5090 / sm_120):
+
+  | K | N | bf16 | fp8-weightonly | fp8-dynamic |
+  |---|---|---|---|---|
+  | 4096 | 4096 | 24.7us | 204.9us (0.12x) | 193.5us (0.13x) |
+  | 4096 | 14336 | 83.4us | 903.4us (0.09x) | 201.5us (0.41x) |
+  | 14336 | 4096 | 87.8us | 903.0us (0.10x) | 193.6us (0.45x) |
+
+  The regression reproduces today, on the real fused-kernel path included,
+  and is consistent with (if not worse than) the original 06-28 measurement.
+
+**Decision:** the watch-item's precondition has not been met -- issue #12
+stays open. No code change: `AGENTS.md`'s "capacity not latency" framing for
+FP8 remains accurate as written. Next re-check should look for a torchao
+release past `0.18.0` that specifically touches single-token (M=1) float8
+inference GEMM dispatch on sm_120, then re-run this same micro-benchmark
+before trusting a changelog claim alone.
