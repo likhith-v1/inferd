@@ -15,6 +15,19 @@
 | git_commit | 93b6d41 |
 | vram_total_mb | 32607 MiB |
 
+## Phase 14 — full-attention crop versus hybrid replay
+
+![Phase 14 speedup](results/plots/phase14_full_vs_hybrid.png)
+
+| pair / reconciliation | gamma | alpha | wall (s) | median speedup | repeat range | result |
+|---|---|---|---|---|---|---|
+| phase14-full / crop-no-replay | 2 | 0.557 | 67.877 | 0.508× | 0.507–0.510× | negative |
+| phase14-full / crop-no-replay | 4 | 0.424 | 71.203 | 0.486× | 0.483–0.505× | negative |
+| phase14-full / crop-no-replay | 8 | 0.260 | 92.962 | 0.371× | 0.369–0.387× | negative |
+| phase14-hybrid / restore-and-replay | 2 | 0.608 | 72.014 | 0.409× | 0.406–0.414× | negative |
+| phase14-hybrid / restore-and-replay | 4 | 0.500 | 73.029 | 0.435× | 0.431–0.441× | negative |
+| phase14-hybrid / restore-and-replay | 8 | 0.292 | 89.331 | 0.342× | 0.338–0.346× | negative |
+
 ## Throughput vs concurrency (three rungs)
 
 Cohort: `4cc2a02e4b534c5bbe9e47ae6ee71309` (provenance-validated).

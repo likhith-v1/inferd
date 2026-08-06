@@ -26,7 +26,7 @@ See [`CONTRIBUTORS.md`](CONTRIBUTORS.md) for maintainer and assistant acknowledg
 ## Highlights
 
 - **Within ~4.6× of vLLM at concurrency 32** — 450 tok/s (ours) vs 2,079 tok/s (vLLM 0.23.0) on Blackwell/sm_120, from iteration-level continuous batching. This is the *reproducible* headline (±1.3% across repeats); it also beats the naive HF floor at every concurrency — see [Results](#results).
-- **Exact speculative decoding, not an approximation** — rejection sampling + residual resample, distribution-equivalence gate **PASS @ n=1500**.
+- **Exact speculative decoding, not an approximation** — rejection sampling + residual resample, distribution-equivalence gate **PASS @ n=1500**. Phase 14's exploratory pair comparison is net-negative on both architectures: **0.51×** baseline for Qwen3-8B/0.6B and **0.44×** for Qwen3.5-9B/0.8B. Because the models differ, that contrast does not isolate cropping alone.
 - **A fine-tuned 27B served on a 32 GB card** — QLoRA adapter + load-time FP8 fits at **28.9 GiB** (an honest capacity proof, not a latency win).
 - **Fully local and offline** — one-time weight download, then air-gapped; no cloud or API inference, ever.
 - **Nothing faked** — every number regenerates from `bench/results/` with one command, and the live React dashboard traces each metric to a real source.
@@ -282,7 +282,7 @@ Every figure below regenerates with `uv run python bench/run_all.py --plots`; pl
 | Experiment | Result | Notes |
 |------------|--------|-------|
 | Spec-decode correctness | **✅ PASS** distribution-equivalence gate, n=1500 | Per-position TV within bootstrapped null; proves exact accept rule + residual resample |
-| Spec decode (0.8B draft) | α ≈ 0.63–0.68; **0.6–0.7× baseline throughput** | Hybrid linear-attention replay tax; correctness + α-lift are the wins, not net speed |
+| Spec decode | Phase 14 pair results: **0.51×** Qwen3, **0.44×** Qwen3.5 | Both pairs pass the approved family-wise correctness gate and remain net-negative |
 | Draft distillation α-lift | Δα up to **+0.056** (mean +0.048) | Replay tax dominates net throughput, not α |
 | Paged KV equivalence | max\|Δlogit\| = 0 on model-level compute gate | Reference path; no Triton kernel yet |
 | 27B FP8 hero | Fine-tuned 27B fits at **28.9 GiB** (peak 32.1/32.6 GiB on-card); **0.121 tok/s** | Capacity proof — FP8 halves weight bytes so the 27B fits the 5090; not a latency win |
@@ -359,7 +359,7 @@ Priority order (as decided with the maintainer — MLX reach first, then engine-
 
 1. **MLX / Apple Silicon port (top priority)** — a *separate* Metal/MLX track to serve the engine on Apple Silicon. Explicitly *out of scope for the CUDA v1* (AGENTS.md pins the v1 stack to CUDA/Blackwell and bans MLX there); a distinct codebase behind the same `forward` seam, not a change to the v1 runtime. → `plans/future/12`
 2. **Persistent paged runtime KV cache** — wire the phase-05 block allocator into live decode instead of stacking HF caches, turning the analytic VRAM win into a measured one. The highest-*integrity* item; unblocks the kernel, prefix-sharing, and KV-quant. → `plans/future/13`
-3. **Full-attention target, spec-decode net-positive** — the highest-leverage single experiment: the ~0.6–0.7× wall-clock was the *hybrid linear-attention replay tax*, not the method, so a croppable-KV target should flip it net-positive. → `plans/future/14`
+3. **Reduce speculation cost** — the full-attention pair measured `0.51×`, so cropping alone did not produce the expected speedup. Distillation or a cheaper draft is the next experiment.
 4. **Triton paged-attention kernel** — replace the reference Python path with a fused kernel (needs #2). → `plans/future/15`
 5. **Batched speculative decoding** — extend accept/replay through the continuous-batching scheduler; measured honestly (may stay net-negative on hybrid). → `plans/future/16`
 6. **vLLM ceiling on Blackwell** — ✅ done: vLLM 0.23.0 runs on sm_120 (isolated `bench/.venv-vllm`); ours is within ~4.6× at c=32. → `plans/shipped/17`

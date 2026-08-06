@@ -102,6 +102,8 @@ def _selfcheck() -> bool:
 
 
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    from bench.pair_configs import PAIR_NAMES
+
     p = argparse.ArgumentParser(
         prog="python -m bench.harness",
         description="inferd benchmark harness — naive HF floor + vLLM ceiling.",
@@ -122,6 +124,11 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p.add_argument("--draft-adapter", default=None, dest="draft_adapter",
                    help="Distilled-draft LoRA adapter dir for the alpha-lift run.")
     p.add_argument("--gamma", default="2,4,8", help="Comma-separated gamma sweep (engine=spec).")
+    p.add_argument("--pair-config", choices=PAIR_NAMES,
+                   default=None, dest="pair_config",
+                   help="Named target/draft pair with pinned provenance (engine=spec).")
+    p.add_argument("--repeats", type=int, default=1,
+                   help="Paired benchmark repetitions with rotated gamma order (engine=spec).")
     p.add_argument("--n-prompts", type=int, default=None, dest="n_prompts",
                    help="Limit number of workload prompts (engine=spec).")
     # --- paged-cache (engine=paged) ---
@@ -197,16 +204,21 @@ def main(argv: list[str] | None = None) -> int:
 
     elif args.engine == "spec":
         from bench.runners.spec import run
+        from bench.pair_configs import get_pair
         gammas = [int(g) for g in args.gamma.split(",")]
+        pair = get_pair(args.pair_config) if args.pair_config else None
         run(
-            target_path=args.target,
-            draft_path=args.draft,
+            target_path=pair.target if pair else args.target,
+            draft_path=pair.draft if pair else args.draft,
             draft_adapter=args.draft_adapter,
             gammas=gammas,
             max_tokens=args.max_tokens,
             seed=args.seed,
             n_prompts=args.n_prompts,
             results_dir=args.results_dir,
+            warmup_runs=args.warmup_runs,
+            repeats=args.repeats,
+            pair_config=pair,
         )
         print("\n[harness] spec-decode run complete.")
 

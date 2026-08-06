@@ -202,7 +202,14 @@ def write_result_json(
         results_dir = Path(__file__).parent / "results"
     ts = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
     out_dir = results_dir / f"{ts}_{out_name}"
-    out_dir.mkdir(parents=True, exist_ok=True)
+    suffix = 1
+    while True:
+        try:
+            out_dir.mkdir(parents=True, exist_ok=False)
+            break
+        except FileExistsError:
+            out_dir = results_dir / f"{ts}_{out_name}-{suffix}"
+            suffix += 1
     data = asdict(payload) if is_dataclass(payload) else dict(payload)
     if extra:
         data.update(extra)

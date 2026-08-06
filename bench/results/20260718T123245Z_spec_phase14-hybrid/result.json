@@ -1,0 +1,265 @@
+{
+  "engine": "spec",
+  "target": "weights/Qwen3.5-9B",
+  "draft": "weights/Qwen3.5-0.8B",
+  "draft_label": "stock",
+  "draft_adapter": null,
+  "phase": 14,
+  "pair_config": "phase14-hybrid",
+  "profile": "canonical",
+  "max_tokens": 128,
+  "baseline_tok_s": 45.4,
+  "sweep": [
+    {
+      "gamma": 2,
+      "alpha": 0.6083,
+      "wall_time_s": 72.013734,
+      "throughput_tok_s": 18.68,
+      "speedup_vs_baseline": 0.409,
+      "speedup_repeat_range": [
+        0.406,
+        0.414
+      ],
+      "net_result": "negative",
+      "theory_tokens_per_round": 1.978,
+      "rounds": 614,
+      "accepted": 747,
+      "proposed": 1228,
+      "tokens": 1345
+    },
+    {
+      "gamma": 4,
+      "alpha": 0.5005,
+      "wall_time_s": 73.029064,
+      "throughput_tok_s": 19.84,
+      "speedup_vs_baseline": 0.435,
+      "speedup_repeat_range": [
+        0.431,
+        0.441
+      ],
+      "net_result": "negative",
+      "theory_tokens_per_round": 1.939,
+      "rounds": 488,
+      "accepted": 977,
+      "proposed": 1952,
+      "tokens": 1449
+    },
+    {
+      "gamma": 8,
+      "alpha": 0.2921,
+      "wall_time_s": 89.330887,
+      "throughput_tok_s": 15.57,
+      "speedup_vs_baseline": 0.342,
+      "speedup_repeat_range": [
+        0.338,
+        0.346
+      ],
+      "net_result": "negative",
+      "theory_tokens_per_round": 1.413,
+      "rounds": 422,
+      "accepted": 986,
+      "proposed": 3376,
+      "tokens": 1391
+    }
+  ],
+  "repeats": [
+    {
+      "repeat": 1,
+      "gamma_order": [
+        2,
+        4,
+        8
+      ],
+      "baseline": {
+        "wall_time_s": 31.29790742500154,
+        "tokens": 1441,
+        "throughput_tok_s": 46.04141677692144
+      },
+      "sweep": [
+        {
+          "gamma": 2,
+          "wall_time_s": 72.01373380900077,
+          "tokens": 1345,
+          "throughput_tok_s": 18.67699296869249,
+          "alpha": 0.6083061889250815,
+          "accepted": 747,
+          "proposed": 1228,
+          "rounds": 614,
+          "speedup_vs_baseline": 0.4056563476138392,
+          "theory_tokens_per_round": 1.9783426084096383
+        },
+        {
+          "gamma": 4,
+          "wall_time_s": 73.02906403499946,
+          "tokens": 1449,
+          "throughput_tok_s": 19.841415457626034,
+          "alpha": 0.5005122950819673,
+          "accepted": 977,
+          "proposed": 1952,
+          "rounds": 488,
+          "speedup_vs_baseline": 0.4309471090727094,
+          "theory_tokens_per_round": 1.9391660092048164
+        },
+        {
+          "gamma": 8,
+          "wall_time_s": 89.33088700299959,
+          "tokens": 1391,
+          "throughput_tok_s": 15.571321932057973,
+          "alpha": 0.29206161137440756,
+          "accepted": 986,
+          "proposed": 3376,
+          "rounds": 422,
+          "speedup_vs_baseline": 0.33820249293160765,
+          "theory_tokens_per_round": 1.4125304601390059
+        }
+      ]
+    },
+    {
+      "repeat": 2,
+      "gamma_order": [
+        4,
+        8,
+        2
+      ],
+      "baseline": {
+        "wall_time_s": 31.831790827000077,
+        "tokens": 1441,
+        "throughput_tok_s": 45.2692092578633
+      },
+      "sweep": [
+        {
+          "gamma": 4,
+          "wall_time_s": 72.58116753300055,
+          "tokens": 1449,
+          "throughput_tok_s": 19.963856317703648,
+          "alpha": 0.5005122950819673,
+          "accepted": 977,
+          "proposed": 1952,
+          "rounds": 488,
+          "speedup_vs_baseline": 0.4410029829322877,
+          "theory_tokens_per_round": 1.9391660092048164
+        },
+        {
+          "gamma": 8,
+          "wall_time_s": 88.85612272900107,
+          "tokens": 1391,
+          "throughput_tok_s": 15.654520558390313,
+          "alpha": 0.29206161137440756,
+          "accepted": 986,
+          "proposed": 3376,
+          "rounds": 422,
+          "speedup_vs_baseline": 0.34580945448414496,
+          "theory_tokens_per_round": 1.4125304601390059
+        },
+        {
+          "gamma": 2,
+          "wall_time_s": 71.75149817500096,
+          "tokens": 1345,
+          "throughput_tok_s": 18.745253189272265,
+          "alpha": 0.6083061889250815,
+          "accepted": 747,
+          "proposed": 1228,
+          "rounds": 614,
+          "speedup_vs_baseline": 0.41408395455938296,
+          "theory_tokens_per_round": 1.9783426084096383
+        }
+      ]
+    },
+    {
+      "repeat": 3,
+      "gamma_order": [
+        8,
+        2,
+        4
+      ],
+      "baseline": {
+        "wall_time_s": 31.737172653000016,
+        "tokens": 1441,
+        "throughput_tok_s": 45.404170552785104
+      },
+      "sweep": [
+        {
+          "gamma": 8,
+          "wall_time_s": 89.69304037700022,
+          "tokens": 1391,
+          "throughput_tok_s": 15.508449642840862,
+          "alpha": 0.29206161137440756,
+          "accepted": 986,
+          "proposed": 3376,
+          "rounds": 422,
+          "speedup_vs_baseline": 0.3415644301840367,
+          "theory_tokens_per_round": 1.4125304601390059
+        },
+        {
+          "gamma": 2,
+          "wall_time_s": 72.41654208799991,
+          "tokens": 1345,
+          "throughput_tok_s": 18.573104448505266,
+          "alpha": 0.6083061889250815,
+          "accepted": 747,
+          "proposed": 1228,
+          "rounds": 614,
+          "speedup_vs_baseline": 0.40906163954504804,
+          "theory_tokens_per_round": 1.9783426084096383
+        },
+        {
+          "gamma": 4,
+          "wall_time_s": 73.43289564400038,
+          "tokens": 1449,
+          "throughput_tok_s": 19.732300997970878,
+          "alpha": 0.5005122950819673,
+          "accepted": 977,
+          "proposed": 1952,
+          "rounds": 488,
+          "speedup_vs_baseline": 0.4345922578858892,
+          "theory_tokens_per_round": 1.9391660092048164
+        }
+      ]
+    }
+  ],
+  "repeat_range": [
+    1,
+    3
+  ],
+  "warmup_runs_per_mode": 1,
+  "target_fingerprint": "720aca733f5e43ac",
+  "draft_fingerprint": "e397fb538db9275b",
+  "tokenizer_sha256": "5f9e4d4901a92b997e463c1f46055088b6cca5ca61a6522d1b9f64c4bb81cb42",
+  "cache_reconciliation": "restore-and-replay",
+  "pair_provenance": {
+    "name": "phase14-hybrid",
+    "target": "weights/Qwen3.5-9B",
+    "draft": "weights/Qwen3.5-0.8B",
+    "target_repo": "Qwen/Qwen3.5-9B",
+    "draft_repo": "Qwen/Qwen3.5-0.8B",
+    "target_revision": null,
+    "draft_revision": null,
+    "tokenizer_sha256": "5f9e4d4901a92b997e463c1f46055088b6cca5ca61a6522d1b9f64c4bb81cb42",
+    "vocab_size": 248320,
+    "reconciliation": "restore-and-replay",
+    "phase12_candidate": false
+  },
+  "resolved_revisions": {
+    "target": "c202236235762e1c871ad0ccb60c8ee5ba337b9a",
+    "draft": "2fc06364715b967f1860aea9cf38778875588b17"
+  },
+  "env": {
+    "timestamp": "2026-07-18T12:32:45Z",
+    "seed": 0,
+    "workload_hash": "1ef349ee2c7709d2",
+    "python": "3.13.14 (main, Jun 23 2026, 15:18:27) [Clang 22.1.3 ]",
+    "platform": "Linux-6.18.33.2-microsoft-standard-WSL2-x86_64-with-glibc2.43",
+    "torch": "2.11.0+cu130",
+    "cuda_available": true,
+    "gpu_name": "NVIDIA GeForce RTX 5090",
+    "gpu_capability": [
+      12,
+      0
+    ],
+    "cuda_version": "13.0",
+    "transformers": "5.3.0",
+    "driver_version": "610.74",
+    "vram_total_mb": "32607 MiB",
+    "git_commit": "5f514d0"
+  }
+}

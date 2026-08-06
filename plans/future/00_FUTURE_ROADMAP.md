@@ -9,17 +9,15 @@ Preferred model: Claude Opus 4.8 | Effort: high
 
 This file is the source of truth for cross-phase coordination of the future work,
 the same role `plans/shipped/00_MASTER_ORCHESTRATION.md` plays for v1. Unfinished
-phase files (12–16) stay lean and defer their shared rules here; completed Phase 17
-now lives in `plans/shipped/17_VLLM_CEILING_BLACKWELL.md`.
+phase files stay lean and defer their shared rules here; completed phases 14 and
+17 now live in `plans/shipped/`.
 
 ## Where v1 left off (the two facts everything hangs on)
-- **Spec-decode's net-negative wall-clock is architectural, not a bug.** Qwen3.5
-  is a *hybrid linear-attention* model; its `GatedDeltaNet` layers carry
-  fixed-size recurrent state that can't be cropped, so every spec round pays a
-  snapshot→restore→**replay** tax that cancels the parallel-verify win
-  (`DECISIONS.md` 2026-06-27, Phase 04). α is healthy (~0.63–0.68); wall-clock is
-  ~0.6–0.7×. The correctness proof (PASS @ n=1500) and the α-lift bridge are the
-  v1 wins — not raw speed.
+- **Spec-decode remains net-negative on both measured Phase 14 pairs.** Dense
+  Qwen3-8B/0.6B measured `0.51×` baseline at best; hybrid Qwen3.5-9B/0.8B
+  measured `0.44×`. This side-by-side result does not isolate cropping because
+  the models differ. Both pass the maintainer-approved family-wise correctness
+  gate at n=1500.
 - **The paged cache is a correctness reference, not a runtime.** Phase 05 proved
   page-table round-trip is bit-exact (`max_abs=0`) but live decode still stores KV
   in HF's contiguous `DynamicCache`; the VRAM win is analytic, the block budget is
@@ -36,14 +34,14 @@ is explicit, not accidental.
 ```
 12 MLX / Apple Silicon port        (breadth — separate track, parallelizable)
 13 persistent paged runtime cache  (integrity — unblocks 14, prefix-share, KV-quant)
-14 full-attention spec-decode      (flips the biggest honest caveat net-positive)
+14 full-attention spec-decode      (DONE 2026-07-18: both pairs negative)
 15 Triton paged-attention kernel   (the deferred kernel credential; needs 13)
 16 batched speculative decoding    (completeness; may stay net-neg on hybrid)
 17 vLLM ceiling on Blackwell       (DONE 2026-07-17: within ~4.6× at c=32 on sm_120)
 ```
 12 shares no v1 files, so it runs fully parallel to 13–17. 14 depends on nothing
 structural (the crop-vs-replay branch already exists in `core/spec_decode.py`).
-15 depends on 13 to matter in the live path. 17 is done (vLLM 0.23.0 runs on sm_120).
+15 depends on 13 to matter in the live path. 14 and 17 are done.
 
 ## Hard-constraint delta from v1 (read before phase 12)
 v1's global constraints (`plans/shipped/00_MASTER_ORCHESTRATION.md`) include
